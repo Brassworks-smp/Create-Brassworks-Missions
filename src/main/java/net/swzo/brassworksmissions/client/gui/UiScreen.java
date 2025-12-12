@@ -7,6 +7,7 @@ import com.simibubi.create.foundation.gui.widget.Indicator;
 import com.simibubi.create.foundation.gui.widget.Label;
 import com.simibubi.create.foundation.gui.widget.SelectionScrollInput;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
@@ -349,9 +350,13 @@ public class UiScreen extends AbstractContainerScreen<UiMenu> {
             this.missionsList.add(Component.translatable("gui.brassworksmissions.ui.mission_prefix", i + 1));
         }
 
-        missionSelector = new SelectionScrollInput(SEL_X - 3, SEL_Y - 2, SEL_W, 18);
+        missionSelector = new SelectionScrollInput(SEL_X - 3, SEL_Y - 2, SEL_W, 18) {
+            @Override
+            public void updateTooltip() { this.toolTip.clear(); }
+        };
         missionSelector.forOptions(missionsList);
         missionSelector.titled(Component.translatable("gui.brassworksmissions.ui.select_mission"));
+        missionSelector.setTooltip(Tooltip.create(Component.empty()));
         BrassworksmissionsModVariables.PlayerVariables playerVariables = entity.getData(BrassworksmissionsModVariables.PLAYER_VARIABLES);
         missionSelector.setState((int) playerVariables.SelectedMission);
         this.addRenderableWidget(missionSelector);
