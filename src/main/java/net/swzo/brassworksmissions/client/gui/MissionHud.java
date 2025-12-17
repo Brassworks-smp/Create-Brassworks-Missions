@@ -35,28 +35,38 @@ public class MissionHud {
     @SubscribeEvent
     public static void onRenderGui(RenderGuiEvent.Post event) {
         Minecraft mc = Minecraft.getInstance();
-        if (mc.player == null) {
-            return;
-        }
+        if (mc.player == null) return;
 
         Player player = mc.player;
         BrassworksmissionsModVariables.PlayerVariables playerVariables = player.getData(BrassworksmissionsModVariables.PLAYER_VARIABLES);
 
-        if (playerVariables.trackedMissions.isEmpty()) {
-            return;
-        }
+        if (playerVariables.trackedMissions.isEmpty()) return;
 
         GuiGraphics guiGraphics = event.getGuiGraphics();
-        int screenWidth = event.getGuiGraphics().guiWidth();
+        int screenWidth = guiGraphics.guiWidth();
+        int screenHeight = guiGraphics.guiHeight();
 
+        int xOffset = Config.CLIENT.HUD_X_OFFSET.get();
         int yOffset = Config.CLIENT.HUD_Y_OFFSET.get();
+
+        int currentY;
+        if (Config.CLIENT.BOTTOM_ALIGN_HUD.get()) {
+            int totalHeight = 0;
+            for (int missionSlot : playerVariables.trackedMissions) {
+                ActiveMission mission = playerVariables.missionData.getMission(missionSlot);
+                if (mission != null) totalHeight += calculateMissionHeight(mission) + 5;
+            }
+            currentY = screenHeight - totalHeight - yOffset + 5;
+        } else {
+            currentY = yOffset;
+        }
 
         for (int missionSlot : playerVariables.trackedMissions) {
             if (missionSlot >= 0 && missionSlot < playerVariables.missionData.getMissions().length) {
                 ActiveMission mission = playerVariables.missionData.getMission(missionSlot);
                 if (mission != null) {
-                    int missionHeight = drawMission(guiGraphics, mission, screenWidth, yOffset);
-                    yOffset += missionHeight + 5;
+                    int missionHeight = drawMission(guiGraphics, mission, screenWidth, currentY);
+                    currentY += missionHeight + 5;
                 }
             }
         }
@@ -241,5 +251,22 @@ public class MissionHud {
             return null;
         }
         return playerVariables.missionData.getMission(missionIndex);
+    }
+
+    private static int calculateMissionHeight(ActiveMission mission) {
+        Minecraft mc = Minecraft.getInstance();
+        final int contentWidth = 160;
+        final int lineSpacing = 3;
+        final int barHeight = 5;
+
+        Component description = MissionUIHelper.getMissionDescription(mission);
+        int descriptionHeight = mc.font.split(description, contentWidth).size() * mc.font.lineHeight;
+
+        Component rewardComponent = MissionUIHelper.getFormattedReward(mission);
+        boolean hasReward = !rewardComponent.getString().isEmpty();
+
+        int contentHeight = mc.font.lineHeight + lineSpacing + descriptionHeight + lineSpacing + mc.font.lineHeight + lineSpacing + barHeight;
+        if (hasReward) contentHeight += mc.font.lineHeight + lineSpacing;
+        return contentHeight + PADDING_TOP + PADDING_BOTTOM;
     }
 }

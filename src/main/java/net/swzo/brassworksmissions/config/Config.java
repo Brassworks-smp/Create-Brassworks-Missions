@@ -25,6 +25,7 @@ public class Config {
         public final ModConfigSpec.IntValue HUD_X_OFFSET;
         public final ModConfigSpec.IntValue HUD_Y_OFFSET;
         public final ModConfigSpec.BooleanValue LEFT_ALIGN_HUD;
+        public final ModConfigSpec.BooleanValue BOTTOM_ALIGN_HUD;
 
         public Client(ModConfigSpec.Builder builder) {
             builder.push("Mission HUD");
@@ -37,6 +38,9 @@ public class Config {
             LEFT_ALIGN_HUD = builder
                     .comment("Align the mission HUD to the left side of the screen instead of the right.")
                     .define("leftAlignHud", false);
+            BOTTOM_ALIGN_HUD = builder
+                    .comment("Align the mission HUD to the bottom of the screen instead of the top.")
+                    .define("bottomAlignHud", false);
             builder.pop();
         }
     }
