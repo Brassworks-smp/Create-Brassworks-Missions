@@ -1,3 +1,4 @@
-### Fixed
+### Added
 
-* Mission tooltup having duplicate values on the latest create mod version
+* Add config option to bottom align gui
+* Add button in modmenu to open the config screen
