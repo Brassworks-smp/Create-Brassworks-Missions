@@ -1,4 +1,3 @@
 ### Added
 
-* Add config option to bottom align gui
-* Add button in modmenu to open the config screen
+* Add mission hud scale config option.

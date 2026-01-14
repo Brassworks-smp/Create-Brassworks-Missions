@@ -43,11 +43,15 @@ public class MissionHud {
         if (playerVariables.trackedMissions.isEmpty()) return;
 
         GuiGraphics guiGraphics = event.getGuiGraphics();
-        int screenWidth = guiGraphics.guiWidth();
-        int screenHeight = guiGraphics.guiHeight();
+        float scale = Config.CLIENT.HUD_SIZE.get().getScale();
 
-        int xOffset = Config.CLIENT.HUD_X_OFFSET.get();
-        int yOffset = Config.CLIENT.HUD_Y_OFFSET.get();
+        int screenWidth = (int) (guiGraphics.guiWidth() / scale);
+        int screenHeight = (int) (guiGraphics.guiHeight() / scale);
+        int xOffset = (int) (Config.CLIENT.HUD_X_OFFSET.get() / scale);
+        int yOffset = (int) (Config.CLIENT.HUD_Y_OFFSET.get() / scale);
+
+        guiGraphics.pose().pushPose();
+        guiGraphics.pose().scale(scale, scale, 1.0f);
 
         int currentY;
         if (Config.CLIENT.BOTTOM_ALIGN_HUD.get()) {
@@ -65,14 +69,15 @@ public class MissionHud {
             if (missionSlot >= 0 && missionSlot < playerVariables.missionData.getMissions().length) {
                 ActiveMission mission = playerVariables.missionData.getMission(missionSlot);
                 if (mission != null) {
-                    int missionHeight = drawMission(guiGraphics, mission, screenWidth, currentY);
+                    int missionHeight = drawMission(guiGraphics, mission, screenWidth, currentY, xOffset);
                     currentY += missionHeight + 5;
                 }
             }
         }
+        guiGraphics.pose().popPose();
     }
 
-    private static int drawMission(GuiGraphics guiGraphics, ActiveMission mission, int screenWidth, int y) {
+    private static int drawMission(GuiGraphics guiGraphics, ActiveMission mission, int screenWidth, int y, int xOffset) {
         Minecraft mc = Minecraft.getInstance();
 
         final int contentWidth = 160;
@@ -113,9 +118,9 @@ public class MissionHud {
 
         int x;
         if (Config.CLIENT.LEFT_ALIGN_HUD.get()) {
-            x = Config.CLIENT.HUD_X_OFFSET.get();
+            x = xOffset;
         } else {
-            x = screenWidth - bgWidth - Config.CLIENT.HUD_X_OFFSET.get();
+            x = screenWidth - bgWidth - xOffset;
         }
 
         drawNineSliceManually(guiGraphics, NINE_SLICE_BACKGROUND, x, y, bgWidth, bgHeight);

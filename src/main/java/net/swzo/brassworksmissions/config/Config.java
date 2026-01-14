@@ -21,11 +21,21 @@ public class Config {
         SERVER_SPEC = serverBuilder.build();
     }
 
+    public enum HudSize {
+        NORMAL(1.0f),
+        SMALL(0.85f),
+        EXTRA_SMALL(0.75f);
+        private final float scale;
+        HudSize(float scale) { this.scale = scale; }
+        public float getScale() { return scale; }
+    }
+
     public static class Client {
         public final ModConfigSpec.IntValue HUD_X_OFFSET;
         public final ModConfigSpec.IntValue HUD_Y_OFFSET;
         public final ModConfigSpec.BooleanValue LEFT_ALIGN_HUD;
         public final ModConfigSpec.BooleanValue BOTTOM_ALIGN_HUD;
+        public final ModConfigSpec.EnumValue<HudSize> HUD_SIZE;
 
         public Client(ModConfigSpec.Builder builder) {
             builder.push("Mission HUD");
@@ -41,6 +51,9 @@ public class Config {
             BOTTOM_ALIGN_HUD = builder
                     .comment("Align the mission HUD to the bottom of the screen instead of the top.")
                     .define("bottomAlignHud", false);
+            HUD_SIZE = builder
+                    .comment("The size of the mission HUD.")
+                    .defineEnum("hudSize", HudSize.NORMAL);
             builder.pop();
         }
     }
