@@ -17,12 +17,15 @@ import net.swzo.brassworksmissions.missions.MissionRegistry;
 import net.swzo.brassworksmissions.missions.types.create.CreateMissionType;
 import net.swzo.brassworksmissions.missions.types.create.DrillMissionType;
 import net.swzo.brassworksmissions.missions.types.create.SawMissionType;
+import net.swzo.brassworksmissions.event.MissionEvent;
 import net.swzo.brassworksmissions.network.BrassworksmissionsModVariables;
 import net.swzo.brassworksmissions.util.MixinUtils;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+import static net.neoforged.neoforge.common.NeoForge.EVENT_BUS;
 
 @Mixin(value = BlockBreakingMovementBehaviour.class, remap = false)
 public class BlockBreakingMovementBehaviourMixin {
@@ -59,13 +62,20 @@ public class BlockBreakingMovementBehaviourMixin {
         boolean needsSync = false;
         var missions = serverPlayer.getData(BrassworksmissionsModVariables.PLAYER_VARIABLES).missionData.getMissions();
 
-        for (ActiveMission mission : missions) {
+        for (int slot = 0; slot < missions.length; slot++) {
+            ActiveMission mission = missions[slot];
+            if (mission == null || mission.isComplete()) {
+                continue;
+            }
             IMissionType type = MissionRegistry.getMissionType(mission.getMissionType());
 
-            if (!mission.isComplete() && missionClass.isInstance(type)) {
+            if (missionClass.isInstance(type)) {
                 CreateMissionType<?> missionType = missionClass.cast(type);
                 if (missionType.check(result, mission)) {
                     needsSync = true;
+                    if (mission.isComplete()) {
+                        EVENT_BUS.post(new MissionEvent.Completed(serverPlayer, mission, slot));
+                    }
                 }
             }
         }

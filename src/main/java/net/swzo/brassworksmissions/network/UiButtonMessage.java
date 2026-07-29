@@ -87,13 +87,19 @@ public record UiButtonMessage(int buttonID, int x, int y, int z, int slot) imple
         if (buttonID == 2) {
             if (entity instanceof ServerPlayer serverPlayer) {
                 BrassworksmissionsModVariables.PlayerVariables playerVariables = entity.getData(BrassworksmissionsModVariables.PLAYER_VARIABLES);
-                MissionController.rerollMission(serverPlayer, ((int)playerVariables.SelectedMission));
+                int selectedSlot = (int) playerVariables.SelectedMission;
+                if (selectedSlot >= 0 && selectedSlot < playerVariables.missionData.getSlotCount()) {
+                    MissionController.rerollMission(serverPlayer, selectedSlot);
+                }
             }
         }
 
         if (buttonID == 3) {
             if (entity instanceof ServerPlayer serverPlayer) {
                 BrassworksmissionsModVariables.PlayerVariables playerVariables = serverPlayer.getData(BrassworksmissionsModVariables.PLAYER_VARIABLES);
+                if (slot < 0 || slot >= playerVariables.missionData.getSlotCount()) {
+                    return;
+                }
                 Integer missionSlot = slot;
 
                 if (playerVariables.trackedMissions.contains(missionSlot)) {

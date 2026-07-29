@@ -49,6 +49,9 @@ public class MissionUIHelper {
 
     private static final Map<String, String> MISSION_VERBS = Map.ofEntries(
             entry("brassworksmissions:break_block", "mission.brassworksmissions.verb.break"),
+            entry("brassworksmissions:place_block", "mission.brassworksmissions.verb.place"),
+            entry("brassworksmissions:smelt_item", "mission.brassworksmissions.verb.smelt"),
+            entry("brassworksmissions:pickup_item", "mission.brassworksmissions.verb.collect"),
             entry("brassworksmissions:reach_experience_level", "mission.brassworksmissions.verb.reach"),
             entry("brassworksmissions:use_totem", "mission.brassworksmissions.verb.use"),
             entry("brassworksmissions:fish_item", "mission.brassworksmissions.verb.fish"),
@@ -73,7 +76,8 @@ public class MissionUIHelper {
             entry("brassworksmissions:press_item", "mission.brassworksmissions.verb.process"),
             entry("brassworksmissions:crush_item", "mission.brassworksmissions.verb.process"),
             entry("brassworksmissions:mill_item", "mission.brassworksmissions.verb.process"),
-            entry("brassworksmissions:cut_item", "mission.brassworksmissions.verb.process")
+            entry("brassworksmissions:cut_item", "mission.brassworksmissions.verb.process"),
+            entry("brassworksmissions:fill_item", "mission.brassworksmissions.verb.process")
     );
 
     private static final Map<String, String> CUSTOM_NOUNS = Map.ofEntries(

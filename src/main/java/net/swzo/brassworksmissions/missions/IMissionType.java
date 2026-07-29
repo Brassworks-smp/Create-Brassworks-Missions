@@ -5,6 +5,7 @@ import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.living.LivingEntityUseItemEvent;
 import net.neoforged.neoforge.event.entity.living.LivingUseTotemEvent;
 import net.neoforged.neoforge.event.entity.player.ItemFishedEvent;
+import net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
@@ -24,6 +25,17 @@ public interface IMissionType {
         return false;
     }
 
+    default boolean onItemSmelted(PlayerEvent.ItemSmeltedEvent event, ActiveMission mission) {
+        return false;
+    }
+
+    default boolean onItemPickedUp(ItemEntityPickupEvent.Post event, ActiveMission mission) {
+        return false;
+    }
+
+    default boolean onBlockPlaced(BlockEvent.EntityPlaceEvent event, ActiveMission mission) {
+        return false;
+    }
 
     default boolean onLivingDeath(LivingDeathEvent event, ActiveMission mission) {
         return false;

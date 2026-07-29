@@ -31,7 +31,10 @@ public record UpdateSelectedMissionMessage(int selectedSlot) implements CustomPa
 
                 if (context.player() instanceof ServerPlayer player) {
                     BrassworksmissionsModVariables.PlayerVariables playerVariables = player.getData(BrassworksmissionsModVariables.PLAYER_VARIABLES);
-                    playerVariables.SelectedMission = message.selectedSlot();
+                    int slotCount = playerVariables.missionData.getSlotCount();
+                    if (message.selectedSlot() >= 0 && message.selectedSlot() < slotCount) {
+                        playerVariables.SelectedMission = message.selectedSlot();
+                    }
                 }
             });
         }

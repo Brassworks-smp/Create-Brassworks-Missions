@@ -34,7 +34,7 @@ public class DistanceManager {
         if (lastPos != null) {
             long tickDiff = currentTime - lastTime;
 
-            if (tickDiff <= 40) {
+            if (tickDiff <= timeoutTicks) {
                 double distance = currentPos.distanceTo(lastPos);
 
                 if (distance > 0.01) {
@@ -53,5 +53,12 @@ public class DistanceManager {
 
         lastPositions.get(uuid).put(missionId, currentPos);
         lastTickTracked.get(uuid).put(missionId, currentTime);
+    }
+
+    public static void clear(ServerPlayer player) {
+        UUID uuid = player.getUUID();
+        lastPositions.remove(uuid);
+        accumulatedDistances.remove(uuid);
+        lastTickTracked.remove(uuid);
     }
 }

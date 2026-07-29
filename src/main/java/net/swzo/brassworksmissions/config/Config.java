@@ -61,6 +61,7 @@ public class Config {
     public static class Server {
         public final ModConfigSpec.ConfigValue<List<? extends String>> MISSION_RESET_DAYS;
         public final ModConfigSpec.IntValue MISSION_RESET_HOUR;
+        public final ModConfigSpec.IntValue MISSION_SLOT_COUNT;
 
         public Server(ModConfigSpec.Builder builder) {
             builder.push("Mission Reset");
@@ -82,6 +83,15 @@ public class Config {
             MISSION_RESET_HOUR = builder
                     .comment("The hour (0-23) in UTC to reset missions on the specified days.")
                     .defineInRange("missionResetHour", 0, 0, 23);
+            builder.pop();
+
+            builder.push("Mission Assignment");
+            MISSION_SLOT_COUNT = builder
+                    .comment(
+                            "Number of active mission slots per player.",
+                            "Changing this value reassigns missions when a player next joins."
+                    )
+                    .defineInRange("missionSlotCount", 6, 1, 32);
             builder.pop();
         }
     }

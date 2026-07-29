@@ -804,5 +804,114 @@
       "minAmount": 8,
       "maxAmount": 13
     }
+  },
+  {
+    "id": "brassworksmissions:place_block",
+    "weight": 4,
+    "titles": [
+      "Master Builder",
+      "Foundation Work",
+      "Block by Block",
+      "Construction Contract",
+      "Site Foreman"
+    ],
+    "requirement": {
+      "requirementType": "block",
+      "item": [
+        "minecraft:stone_bricks",
+        "minecraft:bricks",
+        "minecraft:oak_planks",
+        "minecraft:cobblestone",
+        "minecraft:glass",
+        "minecraft:deepslate_bricks"
+      ],
+      "minAmount": 32,
+      "maxAmount": 128
+    },
+    "reward": {
+      "minAmount": 4,
+      "maxAmount": 12,
+      "mode": "progressive"
+    }
+  },
+  {
+    "id": "brassworksmissions:smelt_item",
+    "weight": 4,
+    "titles": [
+      "Furnace Foreman",
+      "Hot off the Line",
+      "Smelting Shift",
+      "Industrial Heat",
+      "Refinery Order"
+    ],
+    "requirement": {
+      "requirementType": "item",
+      "item": [
+        "minecraft:iron_ingot",
+        "minecraft:gold_ingot",
+        "minecraft:copper_ingot",
+        "minecraft:glass",
+        "minecraft:stone",
+        "minecraft:brick"
+      ],
+      "minAmount": 16,
+      "maxAmount": 64
+    },
+    "reward": {
+      "minAmount": 4,
+      "maxAmount": 10,
+      "mode": "progressive"
+    }
+  },
+  {
+    "id": "brassworksmissions:pickup_item",
+    "weight": 3,
+    "titles": [
+      "Supply Run",
+      "Ground Collection",
+      "Material Recovery",
+      "Stockroom Refill",
+      "Gathering Duty"
+    ],
+    "requirement": {
+      "requirementType": "item",
+      "item": [
+        "minecraft:coal",
+        "minecraft:raw_iron",
+        "minecraft:raw_copper",
+        "minecraft:redstone",
+        "minecraft:quartz",
+        "minecraft:clay_ball"
+      ],
+      "minAmount": 24,
+      "maxAmount": 96
+    },
+    "reward": {
+      "minAmount": 3,
+      "maxAmount": 9,
+      "mode": "random"
+    }
+  },
+  {
+    "id": "brassworksmissions:fill_item",
+    "weight": 3,
+    "titles": [
+      "Spout Operator",
+      "Fluid Filling Order",
+      "Bottling Line",
+      "Precision Pour",
+      "Liquid Logistics"
+    ],
+    "requirement": {
+      "requirementType": "item",
+      "item": "minecraft:honey_bottle",
+      "minAmount": 8,
+      "maxAmount": 32
+    },
+    "reward": {
+      "minAmount": 3,
+      "maxAmount": 8,
+      "mode": "progressive"
+    }
   }
 ]

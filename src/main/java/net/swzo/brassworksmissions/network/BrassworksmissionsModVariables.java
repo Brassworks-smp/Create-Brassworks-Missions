@@ -2,6 +2,8 @@ package net.swzo.brassworksmissions.network;
 
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.codec.StreamCodec;
@@ -75,23 +77,26 @@ public class BrassworksmissionsModVariables {
             clone.hasmissiondata = original.hasmissiondata;
             clone.missionData = original.missionData;
             clone.trackedMissions = new ArrayList<>(original.trackedMissions);
+            clone.pendingRewards = original.pendingRewards.stream().map(ItemStack::copy).collect(Collectors.toList());
             event.getEntity().setData(PLAYER_VARIABLES, clone);
         }
     }
 
     public static class PlayerVariables implements INBTSerializable<CompoundTag> {
         public long lastWeeklyResetTime = 1;
-        public double SelectedMission = 1.0;
+        public double SelectedMission = 0.0;
         public int reRollAmount = 1;
         public boolean hasmissiondata = false;
         public PlayerMissionData missionData;
         public List<Integer> trackedMissions;
+        public List<ItemStack> pendingRewards;
 
         public PlayerVariables() {
             this.lastWeeklyResetTime = 1;
-            this.SelectedMission = 1.0;
+            this.SelectedMission = 0.0;
             this.reRollAmount = 1;
             this.trackedMissions = new ArrayList<>();
+            this.pendingRewards = new ArrayList<>();
 
             this.missionData = new PlayerMissionData();
 
@@ -104,7 +109,7 @@ public class BrassworksmissionsModVariables {
             ItemStack requirementStack = new ItemStack(Items.BARRIER, requiredAmount);
             ItemStack rewardStack = new ItemStack(Items.DIAMOND, rewardAmount);
 
-            int fillSlots = Math.min(6, PlayerMissionData.MISSION_SLOTS);
+            int fillSlots = missionData.getSlotCount();
             for (int i = 0; i < fillSlots; i++) {
                 ActiveMission mission = new ActiveMission(
                         missionType,
@@ -127,6 +132,13 @@ public class BrassworksmissionsModVariables {
             nbt.putInt("reRollAmount", reRollAmount);
             nbt.putBoolean("hasmissiondata", hasmissiondata);
             nbt.putIntArray("trackedMissions", trackedMissions.stream().mapToInt(Integer::intValue).toArray());
+            ListTag pendingRewardList = new ListTag();
+            for (ItemStack stack : pendingRewards) {
+                if (!stack.isEmpty()) {
+                    pendingRewardList.add(stack.save(lookupProvider));
+                }
+            }
+            nbt.put("pendingRewards", pendingRewardList);
             return nbt;
         }
 
@@ -143,6 +155,31 @@ public class BrassworksmissionsModVariables {
             if (nbt.contains("trackedMissions", CompoundTag.TAG_INT_ARRAY)) {
                 trackedMissions = Arrays.stream(nbt.getIntArray("trackedMissions")).boxed().collect(Collectors.toList());
             }
+            pendingRewards = new ArrayList<>();
+            if (nbt.contains("pendingRewards", Tag.TAG_LIST)) {
+                ListTag pendingRewardList = nbt.getList("pendingRewards", Tag.TAG_COMPOUND);
+                for (int i = 0; i < pendingRewardList.size(); i++) {
+                    ItemStack.parse(lookupProvider, pendingRewardList.getCompound(i))
+                            .filter(stack -> !stack.isEmpty())
+                            .ifPresent(pendingRewards::add);
+                }
+            }
+        }
+
+        public void storePendingReward(ItemStack reward) {
+            if (reward != null && !reward.isEmpty()) {
+                pendingRewards.add(reward.copy());
+            }
+        }
+
+        public List<ItemStack> takePendingRewards() {
+            List<ItemStack> rewards = pendingRewards.stream().map(ItemStack::copy).collect(Collectors.toList());
+            pendingRewards.clear();
+            return rewards;
+        }
+
+        public int getPendingRewardItemCount() {
+            return pendingRewards.stream().mapToInt(ItemStack::getCount).sum();
         }
 
         public void syncPlayerVariables(Entity entity) {

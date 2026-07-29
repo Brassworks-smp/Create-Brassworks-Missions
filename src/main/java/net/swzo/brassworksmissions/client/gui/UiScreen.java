@@ -290,7 +290,7 @@ public class UiScreen extends AbstractContainerScreen<UiMenu> {
 
         ItemStack missionIcon = null;
         if (mission != null) {
-            missionIcon = new ItemStack(mission.getRequirementItemStack().getItem(), 1);
+            missionIcon = mission.getIconItemStack();
         }
         if (missionIcon != null) {
             guiGraphics.renderItem(missionIcon, this.leftPos + 25, this.topPos + 43);
@@ -356,7 +356,10 @@ public class UiScreen extends AbstractContainerScreen<UiMenu> {
         final int SEL_Y = this.topPos + 44;
         final int SEL_W = 118;
 
-        for (int i = 0; i < PlayerMissionData.MISSION_SLOTS; i++) {
+        int slotCount = entity.getData(BrassworksmissionsModVariables.PLAYER_VARIABLES)
+                .missionData
+                .getSlotCount();
+        for (int i = 0; i < slotCount; i++) {
             this.missionsList.add(Component.translatable("gui.brassworksmissions.ui.mission_prefix", i + 1));
         }
 
@@ -368,7 +371,8 @@ public class UiScreen extends AbstractContainerScreen<UiMenu> {
         missionSelector.titled(Component.translatable("gui.brassworksmissions.ui.select_mission"));
         missionSelector.setTooltip(Tooltip.create(Component.empty()));
         BrassworksmissionsModVariables.PlayerVariables playerVariables = entity.getData(BrassworksmissionsModVariables.PLAYER_VARIABLES);
-        missionSelector.setState((int) playerVariables.SelectedMission);
+        int selectedSlot = Math.max(0, Math.min((int) playerVariables.SelectedMission, slotCount - 1));
+        missionSelector.setState(selectedSlot);
         this.addRenderableWidget(missionSelector);
     }
 

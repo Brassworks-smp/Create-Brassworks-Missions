@@ -61,6 +61,9 @@
 
   "mission.brassworksmissions.verb.objective": "Objective",
   "mission.brassworksmissions.verb.break": "Break",
+  "mission.brassworksmissions.verb.place": "Place",
+  "mission.brassworksmissions.verb.smelt": "Smelt",
+  "mission.brassworksmissions.verb.collect": "Collect",
   "mission.brassworksmissions.verb.breed": "Breed",
   "mission.brassworksmissions.verb.consume": "Consume",
   "mission.brassworksmissions.verb.craft": "Craft",

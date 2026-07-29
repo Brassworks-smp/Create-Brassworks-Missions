@@ -14,9 +14,6 @@ import net.minecraft.world.item.Items;
 import net.swzo.brassworksmissions.BrassworksmissionsMod;
 
 import java.util.Map;
-import java.util.Optional;
-
-
 public class RewardManager extends SimpleJsonResourceReloadListener {
     private static final Gson GSON = new GsonBuilder().create();
     private static final String DIRECTORY = "missions";
@@ -37,7 +34,15 @@ public class RewardManager extends SimpleJsonResourceReloadListener {
             try {
                 RewardConfig config = GSON.fromJson(rewardJson, RewardConfig.class);
                 if (config != null && config.getItem() != null) {
-                    Item rewardItem = Optional.of(BuiltInRegistries.ITEM.get(ResourceLocation.parse(config.getItem()))).orElse(Items.EMERALD);
+                    ResourceLocation rewardId = ResourceLocation.tryParse(config.getItem());
+                    if (rewardId == null || !BuiltInRegistries.ITEM.containsKey(rewardId)) {
+                        BrassworksmissionsMod.LOGGER.error(
+                                "Unknown mission reward item '{}'. Using default reward.",
+                                config.getItem()
+                        );
+                        return;
+                    }
+                    Item rewardItem = BuiltInRegistries.ITEM.get(rewardId);
                     this.rewardItemStack = new ItemStack(rewardItem);
                     BrassworksmissionsMod.LOGGER.info("Loaded mission reward item: {}", config.getItem());
                 } else {

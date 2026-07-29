@@ -9,8 +9,11 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.swzo.brassworksmissions.missions.*;
 import net.swzo.brassworksmissions.missions.types.create.CreateMissionType;
 import net.swzo.brassworksmissions.network.BrassworksmissionsModVariables;
+import net.swzo.brassworksmissions.event.MissionEvent;
 
 import javax.annotation.Nullable;
+
+import static net.neoforged.neoforge.common.NeoForge.EVENT_BUS;
 public class MixinUtils {
 
     public static <T extends CreateMissionType<?>> void handleMixinMissionItem(BlockEntity be, Class<T> missionClass, ItemStack output) {
@@ -33,7 +36,7 @@ public class MixinUtils {
 
         boolean needsSync = false;
 
-        for (int i = 0; i < PlayerMissionData.MISSION_SLOTS; i++) {
+        for (int i = 0; i < missionData.getSlotCount(); i++) {
             ActiveMission mission = missionData.getMission(i);
 
             if (mission == null || mission.isComplete()) {
@@ -46,6 +49,9 @@ public class MixinUtils {
                 T missionType = missionClass.cast(type);
                 if (missionType.check(output, mission)) {
                     needsSync = true;
+                    if (mission.isComplete()) {
+                        EVENT_BUS.post(new MissionEvent.Completed(serverPlayer, mission, i));
+                    }
                 }
             }
         }
@@ -71,7 +77,7 @@ public class MixinUtils {
 
         boolean needsSync = false;
 
-        for (int i = 0; i < PlayerMissionData.MISSION_SLOTS; i++) {
+        for (int i = 0; i < missionData.getSlotCount(); i++) {
             ActiveMission mission = missionData.getMission(i);
 
             if (mission == null || mission.isComplete()) {
@@ -84,6 +90,9 @@ public class MixinUtils {
                 T missionType = missionClass.cast(type);
                 if (missionType.check(itemStack, mission)) {
                     needsSync = true;
+                    if (mission.isComplete()) {
+                        EVENT_BUS.post(new MissionEvent.Completed(serverPlayer, mission, i));
+                    }
                 }
             }
         }

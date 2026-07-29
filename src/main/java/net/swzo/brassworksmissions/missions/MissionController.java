@@ -46,7 +46,7 @@ public class MissionController {
     @Nullable
     public static ActiveMission getMissionInSlot(Player player, int slot) {
         PlayerMissionData data = getMissionData(player);
-        if (data == null || slot < 0 || slot >= PlayerMissionData.MISSION_SLOTS) {
+        if (slot < 0 || slot >= data.getSlotCount()) {
             return null;
         }
 
@@ -55,38 +55,39 @@ public class MissionController {
 
     public static void reassignMissions(ServerPlayer player) {
         PlayerMissionData data = getMissionData(player);
-        if (data == null) return;
+        bankUnclaimedRewards(player, data);
+        data.resizeToConfiguredSlotCount();
+        int slotCount = data.getSlotCount();
 
         data.clear();
         RandomSource random = player.getRandom();
         BrassworksmissionsModVariables.PlayerVariables playerVariables = player.getData(BrassworksmissionsModVariables.PLAYER_VARIABLES);
+        playerVariables.SelectedMission = 0;
         playerVariables.reRollAmount = 1;
         Set<String> assignedMissionIds = new HashSet<>();
-        List<Mission> missionsToAssign = new ArrayList<>();
 
         int attempts = 0;
-        int maxAttempts = PlayerMissionData.MISSION_SLOTS * 20;
+        int maxAttempts = slotCount * 20;
+        int slot = 0;
 
-        while (missionsToAssign.size() < PlayerMissionData.MISSION_SLOTS && attempts < maxAttempts) {
+        while (slot < slotCount && attempts < maxAttempts) {
             Mission potentialMission = BrassworksmissionsMod.getMissionManager().getWeightedRandomMission(random);
 
-            if (potentialMission != null) {
-                if (!assignedMissionIds.contains(potentialMission.getId())) {
-                    missionsToAssign.add(potentialMission);
-                    assignedMissionIds.add(potentialMission.getId());
+            if (potentialMission != null && assignedMissionIds.add(potentialMission.getId())) {
+                ActiveMission activeMission = potentialMission.createInstance(random);
+                if (activeMission != null) {
+                    data.setMission(slot, activeMission);
+                    slot++;
+                } else {
+                    assignedMissionIds.remove(potentialMission.getId());
                 }
             }
             attempts++;
         }
 
-        for (int i = 0; i < missionsToAssign.size(); i++) {
-            Mission missionTemplate = missionsToAssign.get(i);
-            data.setMission(i, missionTemplate.createInstance(random));
-        }
-
-        if (missionsToAssign.size() < PlayerMissionData.MISSION_SLOTS) {
+        if (slot < slotCount) {
             BrassworksmissionsMod.LOGGER.warn("Could not find enough unique missions for player {}. Filled {} of {} slots.",
-                    player.getName().getString(), missionsToAssign.size(), PlayerMissionData.MISSION_SLOTS);
+                    player.getName().getString(), slot, slotCount);
         }
 
         playerVariables.trackedMissions.clear();
@@ -96,16 +97,12 @@ public class MissionController {
     @Nullable
     private static Mission findUniqueMissionForSlot(Player player, int excludedSlot, RandomSource random) {
         PlayerMissionData data = getMissionData(player);
-        if (data == null) {
-            return null;
-        }
-
         Set<String> existingMissionIds = new HashSet<>();
-        for (int i = 0; i < PlayerMissionData.MISSION_SLOTS; i++) {
+        for (int i = 0; i < data.getSlotCount(); i++) {
             if (i == excludedSlot) continue;
             ActiveMission mission = data.getMission(i);
             if (mission != null) {
-                existingMissionIds.add(mission.getMissionType());
+                existingMissionIds.add(mission.getMissionId());
             }
         }
 
@@ -125,8 +122,23 @@ public class MissionController {
     }
 
     public static void rerollMission(ServerPlayer player, int slot) {
-        if (isMissionCompleted(player, slot)) {
+        PlayerMissionData data = getMissionData(player);
+        ActiveMission currentMission = data.getMission(slot);
+        if (slot < 0 || slot >= data.getSlotCount() || currentMission == null) {
+            player.sendSystemMessage(Component.literal("Invalid or empty mission slot.").withStyle(ChatFormatting.RED));
+            return;
+        }
+        if (currentMission.isComplete()) {
             player.sendSystemMessage(Component.translatable("gui.brassworksmissions.error.completed_mission")
+                    .withStyle(ChatFormatting.RED));
+            return;
+        }
+
+        RandomSource random = player.getRandom();
+        Mission missionTemplate = findUniqueMissionForSlot(player, slot, random);
+        ActiveMission newMission = missionTemplate == null ? null : missionTemplate.createInstance(random);
+        if (newMission == null) {
+            player.sendSystemMessage(Component.literal("No valid replacement mission is available.")
                     .withStyle(ChatFormatting.RED));
             return;
         }
@@ -173,37 +185,31 @@ public class MissionController {
         }
 
         playerVariables.reRollAmount++;
+        data.setMission(slot, newMission);
         playerVariables.syncPlayerVariables(player);
-        PlayerMissionData data = getMissionData(player);
-        if (data == null || slot < 0 || slot >= PlayerMissionData.MISSION_SLOTS) {
-            return;
-        }
-        RandomSource random = player.getRandom();
-        Mission missionTemplate = findUniqueMissionForSlot(player, slot, random);
-        if (missionTemplate != null) {
-            ActiveMission newMission = missionTemplate.createInstance(random);
-            data.setMission(slot, newMission);
-            playerVariables.syncPlayerVariables(player);
-
-            EVENT_BUS.post(new MissionEvent.Rerolled(player, newMission, slot, false));
-        }
+        EVENT_BUS.post(new MissionEvent.Rerolled(player, newMission, slot, false));
     }
 
-    public static void forceRerollMission(ServerPlayer player, int slot) {
+    public static boolean forceRerollMission(ServerPlayer player, int slot) {
         PlayerMissionData data = getMissionData(player);
-        if (data == null || slot < 0 || slot >= PlayerMissionData.MISSION_SLOTS) {
-            return;
+        if (slot < 0 || slot >= data.getSlotCount()) {
+            return false;
         }
 
         RandomSource random = player.getRandom();
         Mission missionTemplate = findUniqueMissionForSlot(player, slot, random);
         if (missionTemplate != null) {
             ActiveMission newMission = missionTemplate.createInstance(random);
+            if (newMission == null) {
+                return false;
+            }
             data.setMission(slot, newMission);
             player.getData(BrassworksmissionsModVariables.PLAYER_VARIABLES).syncPlayerVariables(player);
 
             EVENT_BUS.post(new MissionEvent.Rerolled(player, newMission, slot, true));
+            return true;
         }
+        return false;
     }
 
     public static boolean isMissionCompleted(Player player, int slot) {
@@ -240,8 +246,16 @@ public class MissionController {
             return false;
         }
         mission.setClaimed(true);
-        ItemStack rewardStack = mission.getRewardItemStack().copy();
-        boolean inserted = player.getInventory().add(rewardStack);
+        deliverReward(player, mission.getRewardItemStack());
+        player.awardStat(CustomStats.MISSIONS_COMPLETED.get());
+        checkAndGrantAdvancements(player);
+        EVENT_BUS.post(new MissionEvent.RewardClaimed(player, mission, slot));
+        return true;
+    }
+
+    private static void deliverReward(ServerPlayer player, ItemStack reward) {
+        ItemStack rewardStack = reward.copy();
+        player.getInventory().add(rewardStack);
         if (!rewardStack.isEmpty()) {
             ItemEntity itemEntity = new ItemEntity(
                     player.level(),
@@ -253,10 +267,30 @@ public class MissionController {
             itemEntity.setNoPickUpDelay();
             player.level().addFreshEntity(itemEntity);
         }
-        player.awardStat(CustomStats.MISSIONS_COMPLETED.get());
-        checkAndGrantAdvancements(player);
-        EVENT_BUS.post(new MissionEvent.RewardClaimed(player, mission, slot));
-        return true;
+    }
+
+    private static int bankUnclaimedRewards(ServerPlayer player, PlayerMissionData data) {
+        BrassworksmissionsModVariables.PlayerVariables playerVariables = player.getData(
+                BrassworksmissionsModVariables.PLAYER_VARIABLES
+        );
+        int banked = 0;
+        for (ActiveMission mission : data.getMissions()) {
+            if (mission == null || !mission.isComplete() || mission.isClaimed()) {
+                continue;
+            }
+            playerVariables.storePendingReward(mission.getRewardItemStack());
+            player.awardStat(CustomStats.MISSIONS_COMPLETED.get());
+            banked++;
+        }
+        if (banked > 0) {
+            checkAndGrantAdvancements(player);
+            BrassworksmissionsMod.LOGGER.info(
+                    "Stored {} unclaimed mission rewards for player {} before reassignment.",
+                    banked,
+                    player.getName().getString()
+            );
+        }
+        return banked;
     }
 
     public static boolean claimReward(ServerPlayer player, int slot) {
@@ -268,15 +302,22 @@ public class MissionController {
     }
 
     public static boolean claimAllRewards(ServerPlayer player) {
-        boolean anyClaimed = false;
-        for (int i = 0; i < PlayerMissionData.MISSION_SLOTS; i++) {
+        BrassworksmissionsModVariables.PlayerVariables playerVariables = player.getData(
+                BrassworksmissionsModVariables.PLAYER_VARIABLES
+        );
+        List<ItemStack> pendingRewards = playerVariables.takePendingRewards();
+        boolean anyClaimed = !pendingRewards.isEmpty();
+        pendingRewards.forEach(reward -> deliverReward(player, reward));
+
+        PlayerMissionData data = getMissionData(player);
+        for (int i = 0; i < data.getSlotCount(); i++) {
             if (claimRewardInternal(player, i)) {
                 anyClaimed = true;
             }
         }
 
         if (anyClaimed) {
-            player.getData(BrassworksmissionsModVariables.PLAYER_VARIABLES).syncPlayerVariables(player);
+            playerVariables.syncPlayerVariables(player);
         }
 
         return anyClaimed;
@@ -284,12 +325,11 @@ public class MissionController {
 
     public static int getTotalClaimableItemCount(Player player) {
         PlayerMissionData data = getMissionData(player);
-        if (data == null) {
-            return 0;
-        }
-
-        int count = 0;
-        for (int i = 0; i < PlayerMissionData.MISSION_SLOTS; i++) {
+        BrassworksmissionsModVariables.PlayerVariables playerVariables = player.getData(
+                BrassworksmissionsModVariables.PLAYER_VARIABLES
+        );
+        int count = playerVariables.getPendingRewardItemCount();
+        for (int i = 0; i < data.getSlotCount(); i++) {
             ActiveMission mission = data.getMission(i);
             if (mission != null && mission.isComplete() && !mission.isClaimed()) {
                 count += mission.getRewardItemStack().getCount();

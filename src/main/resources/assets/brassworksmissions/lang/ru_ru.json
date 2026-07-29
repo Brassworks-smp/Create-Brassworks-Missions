@@ -3,7 +3,7 @@
   "advancements.brassworksmissions.root.description": "Выполняйте поручения для получения наград и ощущения гордости",
   "advancements.brassworksmissions.missions_10.title": "Испытательный срок",
   "advancements.brassworksmissions.missions_10.description": "Выполните 10 поручений",
-  "advancements.brassworksmissions.missions_50.title": "Повторение — мать учения",
+  "advancements.brassworksmissions.missions_50.title": "Повторение - мать учения",
   "advancements.brassworksmissions.missions_50.description": "Выполните 50 поручений",
   "advancements.brassworksmissions.missions_100.title": "Терпение и труд...",
   "advancements.brassworksmissions.missions_100.description": "Выполните 100 поручений",
@@ -61,6 +61,9 @@
 
   "mission.brassworksmissions.verb.objective": "Задача",
   "mission.brassworksmissions.verb.break": "Разрушить",
+  "mission.brassworksmissions.verb.place": "Разместить",
+  "mission.brassworksmissions.verb.smelt": "Переплавить",
+  "mission.brassworksmissions.verb.collect": "Собрать",
   "mission.brassworksmissions.verb.breed": "Вырастить",
   "mission.brassworksmissions.verb.consume": "Съесть",
   "mission.brassworksmissions.verb.craft": "Создать",

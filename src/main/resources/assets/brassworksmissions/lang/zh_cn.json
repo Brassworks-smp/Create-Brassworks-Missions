@@ -61,6 +61,9 @@
 
   "mission.brassworksmissions.verb.objective": "目标",
   "mission.brassworksmissions.verb.break": "破坏",
+  "mission.brassworksmissions.verb.place": "放置",
+  "mission.brassworksmissions.verb.smelt": "熔炼",
+  "mission.brassworksmissions.verb.collect": "收集",
   "mission.brassworksmissions.verb.breed": "繁殖",
   "mission.brassworksmissions.verb.consume": "消耗",
   "mission.brassworksmissions.verb.craft": "合成",

@@ -11,12 +11,14 @@ import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.living.LivingEntityUseItemEvent;
 import net.neoforged.neoforge.event.entity.living.LivingUseTotemEvent;
 import net.neoforged.neoforge.event.entity.player.ItemFishedEvent;
+import net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 import net.swzo.brassworksmissions.BrassworksmissionsMod;
 import net.swzo.brassworksmissions.missions.ActiveMission;
 import net.swzo.brassworksmissions.missions.IMissionType;
+import net.swzo.brassworksmissions.missions.MissionController;
 import net.swzo.brassworksmissions.missions.MissionRegistry;
 import net.swzo.brassworksmissions.missions.types.create.MoveOnBeltMissionType;
 import net.swzo.brassworksmissions.missions.types.vanilla.DriveBoatMissionType;
@@ -37,15 +39,10 @@ import static net.neoforged.neoforge.common.NeoForge.EVENT_BUS;
 public class MissionEventSubscriber {
 
     private static final Map<UUID, String> lastMovementType = new HashMap<>();
-    private static int lastCheckedMinute = -1;
 
     private static <E> void handleEvent(E event, ServerPlayer player, BiFunction<IMissionType, ActiveMission, Boolean> check) {
         boolean needsSync = false;
-        var missions = player.getData(BrassworksmissionsModVariables.PLAYER_VARIABLES).missionData.getMissions();
-
-        if (missions == null) {
-            return;
-        }
+        var missions = MissionController.getMissionData(player).getMissions();
 
         for (int slot = 0; slot < missions.length; slot++) {
             ActiveMission mission = missions[slot];
@@ -109,9 +106,30 @@ public class MissionEventSubscriber {
     }
 
     @SubscribeEvent
+    public static void onBlockPlaced(BlockEvent.EntityPlaceEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            handleEvent(event, player, (type, mission) -> type.onBlockPlaced(event, mission));
+        }
+    }
+
+    @SubscribeEvent
     public static void onItemCrafted(PlayerEvent.ItemCraftedEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
             handleEvent(event, player, (type, mission) -> type.onItemCrafted(event, mission));
+        }
+    }
+
+    @SubscribeEvent
+    public static void onItemSmelted(PlayerEvent.ItemSmeltedEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            handleEvent(event, player, (type, mission) -> type.onItemSmelted(event, mission));
+        }
+    }
+
+    @SubscribeEvent
+    public static void onItemPickedUp(ItemEntityPickupEvent.Post event) {
+        if (event.getPlayer() instanceof ServerPlayer player) {
+            handleEvent(event, player, (type, mission) -> type.onItemPickedUp(event, mission));
         }
     }
 
@@ -147,6 +165,14 @@ public class MissionEventSubscriber {
     public static void onItemConsumed(LivingEntityUseItemEvent.Finish event) {
         if (event.getEntity() instanceof ServerPlayer player) {
             handleEvent(event, player, (type, mission) -> type.onItemConsumed(event, mission));
+        }
+    }
+
+    @SubscribeEvent
+    public static void onPlayerLogout(PlayerEvent.PlayerLoggedOutEvent event) {
+        lastMovementType.remove(event.getEntity().getUUID());
+        if (event.getEntity() instanceof ServerPlayer player) {
+            DistanceManager.clear(player);
         }
     }
 }

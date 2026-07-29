@@ -61,6 +61,9 @@
 
   "mission.brassworksmissions.verb.objective": "الهدف",
   "mission.brassworksmissions.verb.break": "كسر",
+  "mission.brassworksmissions.verb.place": "ضع",
+  "mission.brassworksmissions.verb.smelt": "صهر",
+  "mission.brassworksmissions.verb.collect": "اجمع",
   "mission.brassworksmissions.verb.breed": "زاوج",
   "mission.brassworksmissions.verb.consume": "استهلك",
   "mission.brassworksmissions.verb.craft": "اصنع",
