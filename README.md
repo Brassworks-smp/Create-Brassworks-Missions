@@ -5,7 +5,6 @@
 [![GitHub](https://i.ibb.co/DPnZdBK5/41dfe80a399c0c8466f8cecc9f35048de5066e11-1.png)](https://github.com/Brassworks-smp/Create-Brassworks-Missions)
 [![Discord](https://wsrv.nl/?url=https://cdn.jsdelivr.net/npm/@intergrav/devins-badges@3/assets/cozy/social/discord-plural_vector.svg&h=64)](https://discord.com/invite/nDhkgzAPR2)
 
-[![CodeFactor](https://www.codefactor.io/repository/github/brassworks-smp/create-brassworks-missions/badge)](https://www.codefactor.io/repository/github/brassworks-smp/create-brassworks-missions)
 [![GitHub issues](https://img.shields.io/github/issues/Brassworks-smp/Create-Brassworks-Missions.svg)](https://github.com/Brassworks-smp/Create-Brassworks-Missions/issues)
 [![GitHub commits](https://img.shields.io/github/commit-activity/t/Brassworks-smp/Create-Brassworks-Missions/master.svg)](https://github.com/Brassworks-smp/Create-Brassworks-Missions/commits)
 ![Lines of Code](https://img.shields.io/endpoint?url=https://ghloc.vercel.app/api/Brassworks-smp/Create-Brassworks-Missions/badge&color=2ecc71)
