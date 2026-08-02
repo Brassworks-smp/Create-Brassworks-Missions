@@ -8,3 +8,4 @@ public class SawMissionType extends CreateMissionType<SawMissionType> {
         return ID;
     }
 }
+

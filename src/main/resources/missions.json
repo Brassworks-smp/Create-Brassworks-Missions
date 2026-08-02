@@ -913,5 +913,144 @@
       "maxAmount": 8,
       "mode": "progressive"
     }
+  },
+  {
+    "id": "brassworksmissions:deep_diamond_excavation",
+    "type": "brassworksmissions:break_block",
+    "category": 2,
+    "weight": 2,
+    "titles": ["Deep Diamond Excavation", "Prospector's Contract"],
+    "availabilityRequirements": [
+      {
+        "type": "brassworksmissions:advancement",
+        "data": {
+          "advancement": "minecraft:story/mine_diamond"
+        }
+      }
+    ],
+    "requirement": {
+      "requirementType": "block",
+      "item": ["minecraft:diamond_ore", "minecraft:deepslate_diamond_ore"],
+      "minAmount": 4,
+      "maxAmount": 12
+    },
+    "reward": {
+      "minAmount": 12,
+      "maxAmount": 24,
+      "mode": "progressive"
+    }
+  },
+  {
+    "id": "brassworksmissions:nether_hunting_contract",
+    "type": "brassworksmissions:kill_entity",
+    "category": 2,
+    "weight": 2,
+    "titles": ["Nether Hunting Contract", "Hostile Territory"],
+    "availabilityRequirements": [
+      {
+        "type": "brassworksmissions:advancement",
+        "data": {
+          "advancement": "minecraft:nether/root"
+        }
+      }
+    ],
+    "requirement": {
+      "requirementType": "entity",
+      "item": ["minecraft:blaze_spawn_egg", "minecraft:hoglin_spawn_egg", "minecraft:magma_cube_spawn_egg"],
+      "minAmount": 12,
+      "maxAmount": 30
+    },
+    "reward": {
+      "minAmount": 12,
+      "maxAmount": 22
+    }
+  },
+  {
+    "id": "brassworksmissions:diamond_tool_order",
+    "type": "brassworksmissions:craft_item",
+    "category": 2,
+    "weight": 2,
+    "titles": ["Diamond Tool Order", "Masterwork Commission"],
+    "recipes": ["minecraft:diamond_pickaxe", "minecraft:diamond_axe"],
+    "availabilityRequirements": [
+      {
+        "type": "brassworksmissions:advancement",
+        "data": {
+          "advancement": "minecraft:story/iron_tools"
+        }
+      }
+    ],
+    "requirement": {
+      "requirementType": "item",
+      "item": ["minecraft:diamond_pickaxe", "minecraft:diamond_axe"],
+      "minAmount": 1,
+      "maxAmount": 2
+    },
+    "reward": {
+      "minAmount": 14,
+      "maxAmount": 24,
+      "mode": "progressive"
+    }
+  },
+  {
+    "id": "brassworksmissions:masonry_contract",
+    "type": "brassworksmissions:place_block",
+    "weight": 2,
+    "titles": ["Masonry Contract", "Fortification Project"],
+    "availabilityRequirements": [
+      {
+        "type": "brassworksmissions:advancement",
+        "data": {
+          "advancement": "minecraft:story/mine_stone"
+        }
+      }
+    ],
+    "requirement": {
+      "requirementType": "block",
+      "item": ["minecraft:stone_bricks", "minecraft:deepslate_bricks", "minecraft:mud_bricks"],
+      "minAmount": 96,
+      "maxAmount": 256
+    },
+    "reward": {
+      "minAmount": 10,
+      "maxAmount": 24,
+      "mode": "progressive"
+    }
+  },
+  {
+    "id": "brassworksmissions:industrial_brass_order",
+    "type": "brassworksmissions:mix_item",
+    "category": 2,
+    "weight": 2,
+    "titles": ["Industrial Brass Order", "Factory Alloy Quota"],
+    "requirement": {
+      "requirementType": "item",
+      "item": "create:brass_ingot",
+      "minAmount": 64,
+      "maxAmount": 192
+    },
+    "reward": {
+      "minAmount": 12,
+      "maxAmount": 28,
+      "mode": "progressive"
+    }
+  },
+  {
+    "id": "brassworksmissions:long_distance_logistics",
+    "type": "brassworksmissions:travel_by_chain_conveyor",
+    "category": 2,
+    "weight": 2,
+    "titles": ["Long-Distance Logistics", "Chain Conveyor Marathon"],
+    "requirement": {
+      "requirementType": "distance",
+      "item": "create:wrench",
+      "minAmount": 2000,
+      "maxAmount": 5000
+    },
+    "reward": {
+      "minAmount": 15,
+      "maxAmount": 30,
+      "mode": "progressive"
+    }
   }
 ]

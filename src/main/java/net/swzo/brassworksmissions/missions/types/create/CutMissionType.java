@@ -8,3 +8,4 @@ public class CutMissionType extends CreateMissionType<CutMissionType> {
         return ID;
     }
 }
+

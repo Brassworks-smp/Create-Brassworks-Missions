@@ -8,3 +8,4 @@ public class MillMissionType extends CreateMissionType<MillMissionType> {
         return ID;
     }
 }
+

@@ -29,3 +29,4 @@ public class SmeltItemMissionType implements IMissionType {
         return false;
     }
 }
+

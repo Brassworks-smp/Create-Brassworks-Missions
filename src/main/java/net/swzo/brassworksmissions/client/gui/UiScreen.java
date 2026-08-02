@@ -20,6 +20,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.network.PacketDistributor;
 import net.swzo.brassworksmissions.client.gui.widget.CustomIconButton;
+import net.swzo.brassworksmissions.config.Config;
 import net.swzo.brassworksmissions.init.KeybindingInit;
 import net.swzo.brassworksmissions.missions.ActiveMission;
 import net.swzo.brassworksmissions.missions.MissionController;
@@ -70,7 +71,13 @@ public class UiScreen extends AbstractContainerScreen<UiMenu> {
 
         Component selectedPrefix = Component.translatable("gui.brassworksmissions.ui.selected_prefix")
                 .setStyle(Style.EMPTY.withColor(TextColor.fromRgb(MissionUIHelper.SELECTOR_PREFIX_COLOR)));
-        Component selectedValue = Component.translatable("gui.brassworksmissions.ui.mission_prefix", missionSelector.getState() + 1)
+        int selectedSlot = missionSelector.getState();
+        PlayerMissionData missionData = entity.getData(BrassworksmissionsModVariables.PLAYER_VARIABLES).missionData;
+        int categoryOneSlots = missionData.getAppliedCategoryOneSlotCount();
+        int categorySlot = selectedSlot < categoryOneSlots
+                ? selectedSlot + 1
+                : selectedSlot - categoryOneSlots + 1;
+        Component selectedValue = Component.translatable("gui.brassworksmissions.ui.mission_prefix", categorySlot)
                 .setStyle(Style.EMPTY.withColor(TextColor.fromRgb(MissionUIHelper.SELECTOR_VALUE_COLOR)));
         Component fullSelectorText = selectedPrefix.copy().append(selectedValue);
         guiGraphics.drawString(this.font, fullSelectorText, this.leftPos + 55, this.topPos + 47, 0xFFFFFF, true);
@@ -88,15 +95,19 @@ public class UiScreen extends AbstractContainerScreen<UiMenu> {
 
         if (missionSelector != null && missionSelector.isMouseOver(mouseX, mouseY)) {
             List<Component> tip = new ArrayList<>();
-            tip.add(Component.translatable("gui.brassworksmissions.tooltip.available_missions").setStyle(Style.EMPTY.withColor(TextColor.fromRgb(MissionUIHelper.TOOLTIP_HEADER_COLOR))));
+            tip.add(Component.literal(Config.SERVER.CATEGORY_ONE_NAME.get()).setStyle(Style.EMPTY.withColor(TextColor.fromRgb(MissionUIHelper.TOOLTIP_HEADER_COLOR))));
             var playerVariables = entity.getData(BrassworksmissionsModVariables.PLAYER_VARIABLES);
+            int categoryOneSlots = playerVariables.missionData.getAppliedCategoryOneSlotCount();
 
             for (int i = 0; i < missionsList.size(); i++) {
+                if (i == categoryOneSlots && playerVariables.missionData.getAppliedCategoryTwoSlotCount() > 0) {
+                    tip.add(Component.literal(Config.SERVER.CATEGORY_TWO_NAME.get())
+                            .setStyle(Style.EMPTY.withColor(TextColor.fromRgb(MissionUIHelper.TOOLTIP_HEADER_COLOR))));
+                }
                 ActiveMission mission = playerVariables.missionData.getMission(i);
-                if (mission == null) continue;
-
-                boolean isComplete = mission.isComplete();
-                Component missionLabel = Component.translatable("gui.brassworksmissions.ui.mission_prefix", i + 1);
+                boolean isComplete = mission != null && mission.isComplete();
+                int categorySlot = i < categoryOneSlots ? i + 1 : i - categoryOneSlots + 1;
+                Component missionLabel = Component.translatable("gui.brassworksmissions.ui.mission_prefix", categorySlot);
                 Component line;
                 int colorHex;
                 Component arrow;
@@ -225,7 +236,10 @@ public class UiScreen extends AbstractContainerScreen<UiMenu> {
             int textWidth = 77;
             int textHeight = 15;
             if (mouseX >= timerX && mouseX <= timerX + textWidth && mouseY >= timerY && mouseY <= timerY + textHeight) {
-                long remainingMillis = UiScreenRenderHelper.getRemainingMillisUntilReset();
+                int selectedCategory = entity.getData(BrassworksmissionsModVariables.PLAYER_VARIABLES)
+                        .missionData
+                        .getCategoryForSlot(missionSelector.getState());
+                long remainingMillis = UiScreenRenderHelper.getRemainingMillisUntilReset(selectedCategory);
                 List<Component> tip = UiScreenRenderHelper.getFormattedTooltipCountdown(remainingMillis);
                 guiGraphics.renderComponentTooltip(font, tip, mouseX, mouseY);
             }
@@ -359,8 +373,14 @@ public class UiScreen extends AbstractContainerScreen<UiMenu> {
         int slotCount = entity.getData(BrassworksmissionsModVariables.PLAYER_VARIABLES)
                 .missionData
                 .getSlotCount();
+        int categoryOneSlots = entity.getData(BrassworksmissionsModVariables.PLAYER_VARIABLES)
+                .missionData
+                .getAppliedCategoryOneSlotCount();
         for (int i = 0; i < slotCount; i++) {
-            this.missionsList.add(Component.translatable("gui.brassworksmissions.ui.mission_prefix", i + 1));
+            int categorySlot = i < categoryOneSlots
+                    ? i + 1
+                    : i - categoryOneSlots + 1;
+            this.missionsList.add(Component.translatable("gui.brassworksmissions.ui.mission_prefix", categorySlot));
         }
 
         missionSelector = new SelectionScrollInput(SEL_X - 3, SEL_Y - 2, SEL_W, 18) {
@@ -490,10 +510,12 @@ public class UiScreen extends AbstractContainerScreen<UiMenu> {
             }
         }
 
-        long remainingMillis = UiScreenRenderHelper.getRemainingMillisUntilReset();
+        int selectedCategory = entity.getData(BrassworksmissionsModVariables.PLAYER_VARIABLES)
+                .missionData
+                .getCategoryForSlot(missionSelector.getState());
+        long remainingMillis = UiScreenRenderHelper.getRemainingMillisUntilReset(selectedCategory);
         if (missionResetTimerLabel != null) {
             missionResetTimerLabel.text = UiScreenRenderHelper.getFormattedCountdown(remainingMillis);
         }
     }
 }
-

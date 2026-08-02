@@ -29,3 +29,4 @@ public class PlaceBlockMissionType implements IMissionType {
         return false;
     }
 }
+

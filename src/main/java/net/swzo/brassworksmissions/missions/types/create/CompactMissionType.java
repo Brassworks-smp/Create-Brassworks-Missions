@@ -8,3 +8,4 @@ public class CompactMissionType extends CreateMissionType<CompactMissionType> {
         return ID;
     }
 }
+

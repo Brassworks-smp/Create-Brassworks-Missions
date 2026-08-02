@@ -8,3 +8,4 @@ public class FlyElytraMissionType extends AbstractDistanceMissionType {
         return ID;
     }
 }
+

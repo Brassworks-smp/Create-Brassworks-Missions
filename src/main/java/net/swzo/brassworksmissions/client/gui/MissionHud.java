@@ -246,18 +246,6 @@ public class MissionHud {
         RenderSystem.disableBlend();
     }
 
-    public ActiveMission getMissionDataForSlot(Player player, int missionSlot) {
-        if (player == null || missionSlot < 1) {
-            return null;
-        }
-        BrassworksmissionsModVariables.PlayerVariables playerVariables = player.getData(BrassworksmissionsModVariables.PLAYER_VARIABLES);
-        int missionIndex = missionSlot - 1;
-        if (missionIndex < 0 || missionIndex >= playerVariables.missionData.getMissions().length) {
-            return null;
-        }
-        return playerVariables.missionData.getMission(missionIndex);
-    }
-
     private static int calculateMissionHeight(ActiveMission mission) {
         Minecraft mc = Minecraft.getInstance();
         final int contentWidth = 160;

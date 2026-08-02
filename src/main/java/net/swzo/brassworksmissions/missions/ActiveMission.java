@@ -8,6 +8,7 @@ import net.minecraft.world.item.ItemStack;
 public class ActiveMission {
     private final String missionId;
     private final String missionType;
+    private final int category;
     private final String title;
     private final ItemStack requirementItemStack;
     private final ItemStack iconItemStack;
@@ -17,10 +18,10 @@ public class ActiveMission {
     private int progress;
     private boolean claimed;
 
-    /**
-     * Legacy constructor retained for source and save compatibility. It treats
-     * the template id and event type as the same value.
-     */
+
+
+
+
     public ActiveMission(
             String missionType,
             String title,
@@ -32,6 +33,7 @@ public class ActiveMission {
         this(
                 missionType,
                 missionType,
+                1,
                 title,
                 requirementItemStack,
                 requirementItemStack,
@@ -53,6 +55,7 @@ public class ActiveMission {
         this(
                 missionId,
                 missionType,
+                1,
                 title,
                 requirementItemStack,
                 requirementItemStack,
@@ -65,6 +68,7 @@ public class ActiveMission {
     public ActiveMission(
             String missionId,
             String missionType,
+            int category,
             String title,
             ItemStack requirementItemStack,
             ItemStack iconItemStack,
@@ -74,6 +78,7 @@ public class ActiveMission {
     ) {
         this.missionId = missionId;
         this.missionType = missionType;
+        this.category = category == 2 ? 2 : 1;
         this.title = title;
         this.requirementItemStack = requirementItemStack;
         this.iconItemStack = iconItemStack;
@@ -116,6 +121,10 @@ public class ActiveMission {
         return missionType;
     }
 
+    public int getCategory() {
+        return category;
+    }
+
     public boolean isComplete() {
         return progress >= requiredAmount;
     }
@@ -150,6 +159,7 @@ public class ActiveMission {
         CompoundTag nbt = new CompoundTag();
         nbt.putString("missionId", missionId);
         nbt.putString("missionType", missionType);
+        nbt.putInt("category", category);
         nbt.putString("title", title);
         if (requirementItemStack != null && !requirementItemStack.isEmpty()) {
             nbt.put("requirementItem", requirementItemStack.save(provider));
@@ -180,6 +190,7 @@ public class ActiveMission {
         ActiveMission mission = new ActiveMission(
                 missionId,
                 missionType,
+                nbt.contains("category", Tag.TAG_INT) ? nbt.getInt("category") : 1,
                 nbt.getString("title"),
                 requirementItem,
                 iconItem,
@@ -203,3 +214,4 @@ public class ActiveMission {
         return "";
     }
 }
+

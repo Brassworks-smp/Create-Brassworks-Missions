@@ -34,3 +34,4 @@ public class PickupItemMissionType implements IMissionType {
         return false;
     }
 }
+

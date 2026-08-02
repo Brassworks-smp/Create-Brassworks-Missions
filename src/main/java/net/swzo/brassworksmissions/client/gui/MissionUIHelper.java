@@ -228,3 +228,4 @@ public class MissionUIHelper {
         return rewardText.copy().append(punctuation).append(amount).append(item).append(pluralSuffix);
     }
 }
+

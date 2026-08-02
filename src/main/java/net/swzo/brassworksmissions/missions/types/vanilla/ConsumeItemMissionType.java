@@ -31,3 +31,4 @@ public class ConsumeItemMissionType implements IMissionType {
         return false;
     }
 }
+

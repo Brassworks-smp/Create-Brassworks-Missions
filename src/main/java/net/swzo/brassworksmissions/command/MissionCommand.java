@@ -32,8 +32,10 @@ import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.swzo.brassworksmissions.BrassworksmissionsMod;
 import net.swzo.brassworksmissions.missions.Mission;
 import net.swzo.brassworksmissions.missions.MissionController;
+import net.swzo.brassworksmissions.missions.MissionDiagnostics;
 import net.swzo.brassworksmissions.missions.MissionManager;
 import net.swzo.brassworksmissions.missions.MissionRegistry;
+import net.swzo.brassworksmissions.missions.LegacyMissionMigrator;
 import net.swzo.brassworksmissions.missions.PlayerMissionData;
 import net.swzo.brassworksmissions.util.UiUtils;
 
@@ -64,13 +66,35 @@ public class MissionCommand {
                         .requires(source -> source.hasPermission(2))
                         .executes(context -> reassignMissions(
                                 context.getSource(),
-                                context.getSource().getPlayerOrException()
+                                context.getSource().getPlayerOrException(),
+                                null
                         ))
                         .then(Commands.argument("target", EntityArgument.player())
                                 .executes(context -> reassignMissions(
                                         context.getSource(),
-                                        EntityArgument.getPlayer(context, "target")
+                                        EntityArgument.getPlayer(context, "target"),
+                                        null
                                 ))
+                        )
+                        .then(Commands.literal("category")
+                                .then(Commands.argument("category", IntegerArgumentType.integer(1, 2))
+                                        .suggests((context, builder) -> SharedSuggestionProvider.suggest(
+                                                List.of("1", "2"),
+                                                builder
+                                        ))
+                                        .executes(context -> reassignMissions(
+                                                context.getSource(),
+                                                context.getSource().getPlayerOrException(),
+                                                IntegerArgumentType.getInteger(context, "category")
+                                        ))
+                                        .then(Commands.argument("target", EntityArgument.player())
+                                                .executes(context -> reassignMissions(
+                                                        context.getSource(),
+                                                        EntityArgument.getPlayer(context, "target"),
+                                                        IntegerArgumentType.getInteger(context, "category")
+                                                ))
+                                        )
+                                )
                         )
                 )
 
@@ -294,10 +318,53 @@ public class MissionCommand {
                                 )
                         )
 
+                        .then(Commands.literal("category")
+                                .then(Commands.argument("id", ResourceLocationArgument.id())
+                                        .suggests((context, builder) -> SharedSuggestionProvider.suggest(
+                                                knownMissionIds(),
+                                                builder
+                                        ))
+                                        .then(Commands.argument("category", IntegerArgumentType.integer(1, 2))
+                                                .suggests((context, builder) -> SharedSuggestionProvider.suggest(
+                                                        List.of("1", "2"),
+                                                        builder
+                                                ))
+                                                .executes(context -> setCategory(
+                                                        context.getSource(),
+                                                        ResourceLocationArgument.getId(context, "id").toString(),
+                                                        IntegerArgumentType.getInteger(context, "category")
+                                                ))
+                                        )
+                                )
+                        )
+
+                        .then(Commands.literal("diagnose")
+                                .executes(context -> MissionDiagnostics.run(context.getSource()))
+                        )
+
                         .then(Commands.literal("reload")
+                                .executes(context -> reloadMissions(context.getSource()))
+                        )
+                )
+
+                .then(Commands.literal("legacy")
+                        .requires(source -> source.hasPermission(2))
+                        .then(Commands.literal("transfer_and_delete")
                                 .executes(context -> runOperation(
                                         context.getSource(),
-                                        missionManager().reloadManagedMissions()
+                                        LegacyMissionMigrator.transferAndDelete()
+                                ))
+                        )
+                        .then(Commands.literal("delete")
+                                .executes(context -> runOperation(
+                                        context.getSource(),
+                                        LegacyMissionMigrator.deleteLegacyFiles()
+                                ))
+                        )
+                        .then(Commands.literal("ignore")
+                                .executes(context -> runOperation(
+                                        context.getSource(),
+                                        LegacyMissionMigrator.ignore()
                                 ))
                         )
                 )
@@ -492,13 +559,21 @@ public class MissionCommand {
                         .append(Component.literal(" "))
                         .append(button("[Mission types]", "/missions manage types", "Show creation syntax by type"))
                         .append(Component.literal(" "))
-                        .append(button("[Reload config]", "/missions manage reload", "Reload managed_missions.json")),
+                        .append(button("[Diagnose]", "/missions manage diagnose", "Validate missions, recipes and requirements"))
+                        .append(Component.literal(" "))
+                        .append(button("[Reload config]", "/missions manage reload", "Reload missions.json")),
                 false
         );
         source.sendSuccess(
                 () -> Component.literal(
                         "Create: choose a type with /missions manage types. "
                                 + "Target and requirement type are handled automatically."
+                ).withStyle(ChatFormatting.GRAY),
+                false
+        );
+        source.sendSuccess(
+                () -> Component.literal(
+                        "Reassign: /missions reassign category <1|2> [player], or /missions reassign [player] for both."
                 ).withStyle(ChatFormatting.GRAY),
                 false
         );
@@ -622,6 +697,7 @@ public class MissionCommand {
                     .append(Component.literal(view.mission().getId()).withStyle(ChatFormatting.AQUA))
                     .append(Component.literal(
                             " [" + view.source().name().toLowerCase(Locale.ROOT) + ", " + state + "]"
+                                    + " [category " + view.mission().getCategory() + "]"
                     ).withStyle(color));
             line.withStyle(style -> style
                     .withClickEvent(new ClickEvent(
@@ -679,6 +755,7 @@ public class MissionCommand {
                         "type=" + mission.getType()
                                 + ", icon=" + (mission.getIcon() == null ? "target item" : mission.getIcon())
                                 + ", source=" + view.source().name().toLowerCase(Locale.ROOT)
+                                + ", category=" + mission.getCategory()
                                 + ", enabled=" + view.enabled()
                                 + ", weight=" + mission.getWeight()
                 ).withStyle(ChatFormatting.GRAY),
@@ -700,7 +777,7 @@ public class MissionCommand {
             actions.append(button(
                     "[Disable]",
                     "/missions manage disable " + id,
-                    "Hide this template without touching its datapack"
+                            "Hide this mission template"
             ));
         } else {
             actions.append(button("[Enable]", "/missions manage enable " + id, "Enable this template"));
@@ -714,14 +791,19 @@ public class MissionCommand {
                         "/missions manage reward_mode " + id + " " + otherMode.serializedName(),
                         "Switch per-mission reward calculation"
                 ));
+        int otherCategory = mission.getCategory() == 1 ? 2 : 1;
+        actions.append(Component.literal(" "))
+                .append(button(
+                        "[Category: " + otherCategory + "]",
+                        "/missions manage category " + id + " " + otherCategory,
+                        "Move this template to category " + otherCategory
+                ));
         if (view.source() == MissionManager.MissionSource.MANAGED) {
             actions.append(Component.literal(" "))
                     .append(button(
                             "[Delete]",
                             "/missions manage delete " + id,
-                            view.datapackSource() == null
-                                    ? "Permanently delete this managed template"
-                                    : "Remove the override and reveal the original datapack template"
+                            "Permanently delete this managed template"
                     ));
         }
         source.sendSuccess(() -> actions, false);
@@ -815,6 +897,23 @@ public class MissionCommand {
         return runOperation(source, missionManager().setRewardMode(id, rewardMode));
     }
 
+    private static int setCategory(CommandSourceStack source, String id, int category) {
+        return runOperation(source, missionManager().setCategory(id, category));
+    }
+
+    private static int reloadMissions(CommandSourceStack source) {
+        source.sendSuccess(
+                () -> Component.literal("Reloading missions.json asynchronously...")
+                        .withStyle(ChatFormatting.YELLOW),
+                false
+        );
+        missionManager().reloadManagedMissionsAsync(
+                source.getServer(),
+                result -> runOperation(source, result)
+        );
+        return 1;
+    }
+
     private static int setTitles(CommandSourceStack source, String id, String input) {
         List<String> titles = parseTitles(source, input);
         return titles == null ? 0 : runOperation(source, missionManager().setTitles(id, titles));
@@ -838,18 +937,36 @@ public class MissionCommand {
         );
     }
 
-    private static int reassignMissions(CommandSourceStack source, ServerPlayer target) {
-        MissionController.reassignMissions(target);
+    private static int reassignMissions(
+            CommandSourceStack source,
+            ServerPlayer target,
+            @Nullable Integer category
+    ) {
+        if (category == null) {
+            MissionController.reassignMissions(target);
+        } else {
+            MissionController.reassignMissions(target, category);
+        }
         boolean isSelf = source.getEntity() == target;
+        String scope = category == null ? "missions" : "mission category " + category;
+        String adminScope = category == null ? "all missions" : scope;
         if (isSelf) {
-            source.sendSuccess(() -> Component.literal("Your missions have been reassigned.").withStyle(ChatFormatting.GREEN), false);
+            source.sendSuccess(
+                    () -> Component.literal(
+                                    category == null
+                                            ? "Your missions have been reassigned."
+                                            : "Your mission category " + category + " has been reassigned."
+                            )
+                            .withStyle(ChatFormatting.GREEN),
+                    false
+            );
         } else {
             source.sendSuccess(
-                    () -> Component.literal("Reassigned all missions for " + target.getName().getString())
+                    () -> Component.literal("Reassigned " + adminScope + " for " + target.getName().getString() + ".")
                             .withStyle(ChatFormatting.GREEN),
                     true
             );
-            target.sendSystemMessage(Component.literal("An administrator has reassigned your missions.")
+            target.sendSystemMessage(Component.literal("An administrator has reassigned your " + scope + ".")
                     .withStyle(ChatFormatting.YELLOW));
         }
         return 1;

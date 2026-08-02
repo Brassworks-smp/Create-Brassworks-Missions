@@ -53,7 +53,7 @@ public class MissionRegistry {
                 "distance",
                 "create:wrench"
         );
-        register(new HarvesterMissionType(), TargetKind.BLOCK, "block", null);
+        register(new HarvesterMissionType(), TargetKind.ITEM, "block", null);
     }
 
     public static void register(IMissionType type) {

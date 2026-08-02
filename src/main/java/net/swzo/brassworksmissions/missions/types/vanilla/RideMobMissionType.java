@@ -8,3 +8,4 @@ public class RideMobMissionType extends AbstractDistanceMissionType {
         return ID;
     }
 }
+

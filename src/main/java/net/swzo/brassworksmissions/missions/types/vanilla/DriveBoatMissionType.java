@@ -8,3 +8,4 @@ public class DriveBoatMissionType extends AbstractDistanceMissionType {
         return ID;
     }
 }
+

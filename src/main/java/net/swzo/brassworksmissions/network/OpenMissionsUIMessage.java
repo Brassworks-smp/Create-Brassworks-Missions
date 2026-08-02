@@ -5,15 +5,11 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 import net.swzo.brassworksmissions.BrassworksmissionsMod;
 import net.swzo.brassworksmissions.util.UiUtils;
 import org.jetbrains.annotations.NotNull;
 
-@EventBusSubscriber
 public record OpenMissionsUIMessage() implements CustomPacketPayload {
 
     public static final Type<OpenMissionsUIMessage> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath(BrassworksmissionsMod.MODID, "open_missions_ui"));
@@ -30,10 +26,5 @@ public record OpenMissionsUIMessage() implements CustomPacketPayload {
     @Override
     public @NotNull Type<? extends CustomPacketPayload> type() {
         return TYPE;
-    }
-
-    @SubscribeEvent
-    public static void registerMessage(FMLCommonSetupEvent event) {
-        BrassworksmissionsMod.addNetworkMessage(OpenMissionsUIMessage.TYPE, OpenMissionsUIMessage.STREAM_CODEC, OpenMissionsUIMessage::handleData);
     }
 }

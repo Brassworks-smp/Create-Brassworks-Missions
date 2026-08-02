@@ -36,3 +36,4 @@ public class FishItemMissionType implements IMissionType {
         return false;
     }
 }
+

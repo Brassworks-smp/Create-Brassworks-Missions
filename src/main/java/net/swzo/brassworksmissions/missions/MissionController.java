@@ -55,47 +55,127 @@ public class MissionController {
 
     public static void reassignMissions(ServerPlayer player) {
         PlayerMissionData data = getMissionData(player);
-        bankUnclaimedRewards(player, data);
+        bankUnclaimedRewards(player, data, null);
         data.resizeToConfiguredSlotCount();
-        int slotCount = data.getSlotCount();
-
         data.clear();
-        RandomSource random = player.getRandom();
         BrassworksmissionsModVariables.PlayerVariables playerVariables = player.getData(BrassworksmissionsModVariables.PLAYER_VARIABLES);
         playerVariables.SelectedMission = 0;
         playerVariables.reRollAmount = 1;
-        Set<String> assignedMissionIds = new HashSet<>();
-
-        int attempts = 0;
-        int maxAttempts = slotCount * 20;
-        int slot = 0;
-
-        while (slot < slotCount && attempts < maxAttempts) {
-            Mission potentialMission = BrassworksmissionsMod.getMissionManager().getWeightedRandomMission(random);
-
-            if (potentialMission != null && assignedMissionIds.add(potentialMission.getId())) {
-                ActiveMission activeMission = potentialMission.createInstance(random);
-                if (activeMission != null) {
-                    data.setMission(slot, activeMission);
-                    slot++;
-                } else {
-                    assignedMissionIds.remove(potentialMission.getId());
-                }
-            }
-            attempts++;
-        }
-
-        if (slot < slotCount) {
-            BrassworksmissionsMod.LOGGER.warn("Could not find enough unique missions for player {}. Filled {} of {} slots.",
-                    player.getName().getString(), slot, slotCount);
-        }
-
+        assignEmptySlots(player, data);
         playerVariables.trackedMissions.clear();
         playerVariables.syncPlayerVariables(player);
     }
 
+    public static void reassignMissions(ServerPlayer player, int category) {
+        PlayerMissionData data = getMissionData(player);
+        int oldCategoryOneSlots = data.getAppliedCategoryOneSlotCount();
+        int oldCategoryTwoSlots = data.getAppliedCategoryTwoSlotCount();
+        bankUnclaimedRewards(player, data, category);
+        data.resizeCategoryToConfiguredSlotCount(category);
+        for (int slot = 0; slot < data.getSlotCount(); slot++) {
+            if (data.getCategoryForSlot(slot) == category) {
+                data.setMission(slot, null);
+            }
+        }
+        assignEmptySlots(player, data);
+        BrassworksmissionsModVariables.PlayerVariables playerVariables = player.getData(BrassworksmissionsModVariables.PLAYER_VARIABLES);
+        playerVariables.SelectedMission = 0;
+        playerVariables.reRollAmount = 1;
+        remapTrackedMissions(
+                playerVariables.trackedMissions,
+                category,
+                oldCategoryOneSlots,
+                oldCategoryTwoSlots,
+                data.getAppliedCategoryOneSlotCount(),
+                data.getAppliedCategoryTwoSlotCount()
+        );
+        playerVariables.syncPlayerVariables(player);
+    }
+
+    public static boolean initializeMissingCategoryTwo(ServerPlayer player) {
+        PlayerMissionData data = getMissionData(player);
+        if (!data.initializeConfiguredCategoryTwo()) {
+            return false;
+        }
+        assignEmptySlots(player, data, 2);
+        player.getData(BrassworksmissionsModVariables.PLAYER_VARIABLES).syncPlayerVariables(player);
+        return true;
+    }
+
+    private static void remapTrackedMissions(
+            Collection<Integer> trackedMissions,
+            int reassignedCategory,
+            int oldCategoryOneSlots,
+            int oldCategoryTwoSlots,
+            int newCategoryOneSlots,
+            int newCategoryTwoSlots
+    ) {
+        Set<Integer> remapped = new HashSet<>();
+        for (int slot : trackedMissions) {
+            if (reassignedCategory == 1) {
+                int categoryTwoSlot = slot - oldCategoryOneSlots;
+                if (categoryTwoSlot >= 0 && categoryTwoSlot < Math.min(oldCategoryTwoSlots, newCategoryTwoSlots)) {
+                    remapped.add(newCategoryOneSlots + categoryTwoSlot);
+                }
+            } else if (slot >= 0 && slot < Math.min(oldCategoryOneSlots, newCategoryOneSlots)) {
+                remapped.add(slot);
+            }
+        }
+        trackedMissions.clear();
+        trackedMissions.addAll(remapped);
+    }
+
+    private static void assignEmptySlots(ServerPlayer player, PlayerMissionData data) {
+        assignEmptySlots(player, data, null);
+    }
+
+    private static void assignEmptySlots(
+            ServerPlayer player,
+            PlayerMissionData data,
+            @Nullable Integer selectedCategory
+    ) {
+        RandomSource random = player.getRandom();
+        Set<String> assignedMissionIds = new HashSet<>();
+        for (ActiveMission mission : data.getMissions()) {
+            if (mission != null) {
+                assignedMissionIds.add(mission.getMissionId());
+            }
+        }
+
+        for (int slot = 0; slot < data.getSlotCount(); slot++) {
+            if (data.getMission(slot) != null) {
+                continue;
+            }
+            int category = data.getCategoryForSlot(slot);
+            if (selectedCategory != null && category != selectedCategory) {
+                continue;
+            }
+            int attempts = 0;
+            while (attempts++ < 20) {
+                Mission potentialMission = BrassworksmissionsMod.getMissionManager()
+                        .getWeightedRandomMission(player, random, category);
+                if (potentialMission != null && assignedMissionIds.add(potentialMission.getId())) {
+                    ActiveMission activeMission = potentialMission.createInstance(random);
+                    if (activeMission != null) {
+                        data.setMission(slot, activeMission);
+                        break;
+                    }
+                    assignedMissionIds.remove(potentialMission.getId());
+                }
+            }
+            if (data.getMission(slot) == null) {
+                BrassworksmissionsMod.LOGGER.warn(
+                        "Could not fill {} mission slot {} for player {}.",
+                        "category " + category,
+                        slot + 1,
+                        player.getName().getString()
+                );
+            }
+        }
+    }
+
     @Nullable
-    private static Mission findUniqueMissionForSlot(Player player, int excludedSlot, RandomSource random) {
+    private static Mission findUniqueMissionForSlot(ServerPlayer player, int excludedSlot, RandomSource random) {
         PlayerMissionData data = getMissionData(player);
         Set<String> existingMissionIds = new HashSet<>();
         for (int i = 0; i < data.getSlotCount(); i++) {
@@ -110,7 +190,9 @@ public class MissionController {
         int maxAttempts = 20;
 
         while (attempts < maxAttempts) {
-            Mission potentialMission = BrassworksmissionsMod.getMissionManager().getWeightedRandomMission(random);
+            int category = data.getCategoryForSlot(excludedSlot);
+            Mission potentialMission = BrassworksmissionsMod.getMissionManager()
+                    .getWeightedRandomMission(player, random, category);
             if (potentialMission != null && !existingMissionIds.contains(potentialMission.getId())) {
                 return potentialMission;
             }
@@ -118,7 +200,11 @@ public class MissionController {
         }
 
         BrassworksmissionsMod.LOGGER.warn("Could not find a unique mission to reroll for player {} after {} attempts. A non-unique mission may be assigned.", player.getName().getString(), maxAttempts);
-        return BrassworksmissionsMod.getMissionManager().getWeightedRandomMission(random);
+        return BrassworksmissionsMod.getMissionManager().getWeightedRandomMission(
+                player,
+                random,
+                data.getCategoryForSlot(excludedSlot)
+        );
     }
 
     public static void rerollMission(ServerPlayer player, int slot) {
@@ -149,7 +235,7 @@ public class MissionController {
             rerollCost = (playerVariables.reRollAmount - 2) * 2;
         }
 
-        Item rerollitem = BrassworksmissionsMod.getRewardManager().getRewardItem().getItem();
+        Item rerollitem = BrassworksmissionsMod.getRewardItem().getItem();
         ItemStack rerollstack = new ItemStack(rerollitem);
 
         if (rerollCost > 32) {
@@ -269,13 +355,22 @@ public class MissionController {
         }
     }
 
-    private static int bankUnclaimedRewards(ServerPlayer player, PlayerMissionData data) {
+    private static int bankUnclaimedRewards(
+            ServerPlayer player,
+            PlayerMissionData data,
+            @Nullable Integer category
+    ) {
         BrassworksmissionsModVariables.PlayerVariables playerVariables = player.getData(
                 BrassworksmissionsModVariables.PLAYER_VARIABLES
         );
         int banked = 0;
-        for (ActiveMission mission : data.getMissions()) {
+        ActiveMission[] missions = data.getMissions();
+        for (int slot = 0; slot < missions.length; slot++) {
+            ActiveMission mission = missions[slot];
             if (mission == null || !mission.isComplete() || mission.isClaimed()) {
+                continue;
+            }
+            if (category != null && data.getCategoryForSlot(slot) != category) {
                 continue;
             }
             playerVariables.storePendingReward(mission.getRewardItemStack());

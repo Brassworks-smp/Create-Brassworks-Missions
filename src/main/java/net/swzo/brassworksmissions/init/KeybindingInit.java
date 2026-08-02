@@ -22,3 +22,4 @@ public class KeybindingInit {
             "key.category.brassworksmissions"
     );
 }
+

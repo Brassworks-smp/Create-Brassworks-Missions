@@ -23,19 +23,24 @@ import static net.neoforged.neoforge.common.NeoForge.EVENT_BUS;
 @EventBusSubscriber(modid = BrassworksmissionsMod.MODID)
 public class MissionResetHandler {
 
-    private static List<DayOfWeek> getResetDays() {
-        return Config.SERVER.MISSION_RESET_DAYS.get().stream()
+    private static List<DayOfWeek> getResetDays(int category) {
+        List<? extends String> configured = category == 2
+                ? Config.SERVER.CATEGORY_TWO_RESET_DAYS.get()
+                : Config.SERVER.MISSION_RESET_DAYS.get();
+        return configured.stream()
                 .map(String::toUpperCase)
                 .map(DayOfWeek::valueOf)
                 .collect(Collectors.toList());
     }
 
-    public static long getMostRecentWeeklyResetTimestamp() {
-        List<DayOfWeek> resetDays = getResetDays();
+    public static long getMostRecentResetTimestamp(int category) {
+        List<DayOfWeek> resetDays = getResetDays(category);
         if (resetDays.isEmpty()) {
             return -1;
         }
-        int resetHour = Config.SERVER.MISSION_RESET_HOUR.get();
+        int resetHour = category == 2
+                ? Config.SERVER.CATEGORY_TWO_RESET_HOUR.get()
+                : Config.SERVER.MISSION_RESET_HOUR.get();
 
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         ZonedDateTime mostRecentReset = null;
@@ -59,12 +64,14 @@ public class MissionResetHandler {
         return mostRecentReset != null ? mostRecentReset.toEpochSecond() : -1;
     }
 
-    public static long getNextWeeklyResetTimestamp() {
-        List<DayOfWeek> resetDays = getResetDays();
+    public static long getNextResetTimestamp(int category) {
+        List<DayOfWeek> resetDays = getResetDays(category);
         if (resetDays.isEmpty()) {
             return Long.MAX_VALUE;
         }
-        int resetHour = Config.SERVER.MISSION_RESET_HOUR.get();
+        int resetHour = category == 2
+                ? Config.SERVER.CATEGORY_TWO_RESET_HOUR.get()
+                : Config.SERVER.MISSION_RESET_HOUR.get();
 
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         ZonedDateTime nextReset = null;
@@ -87,6 +94,10 @@ public class MissionResetHandler {
         return nextReset != null ? nextReset.toEpochSecond() : Long.MAX_VALUE;
     }
 
+    public static long getNextWeeklyResetTimestamp() {
+        return getNextResetTimestamp(1);
+    }
+
     @SubscribeEvent
     public static void onPlayerLogin(PlayerEvent.PlayerLoggedInEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
@@ -105,27 +116,49 @@ public class MissionResetHandler {
 
     public static void checkAndResetMissions(ServerPlayer player) {
         BrassworksmissionsModVariables.PlayerVariables playerVariables = player.getData(BrassworksmissionsModVariables.PLAYER_VARIABLES);
-        long currentResetTime = getMostRecentWeeklyResetTimestamp();
-
-        if (currentResetTime == -1) return;
-
-        long playerLastResetTime = playerVariables.lastWeeklyResetTime;
+        long categoryOneResetTime = getMostRecentResetTimestamp(1);
+        long categoryTwoResetTime = Config.SERVER.CATEGORY_TWO_ENABLED.get()
+                ? getMostRecentResetTimestamp(2)
+                : -1;
+        boolean resetCategoryOne = playerVariables.lastWeeklyResetTime < categoryOneResetTime;
+        boolean resetCategoryTwo = categoryTwoResetTime != -1
+                && playerVariables.lastCategoryTwoResetTime < categoryTwoResetTime;
 
         if (playerVariables.missionData == null) {
             playerVariables.missionData = new PlayerMissionData();
             MissionController.reassignMissions(player);
-            playerVariables.lastWeeklyResetTime = currentResetTime;
+            playerVariables.lastWeeklyResetTime = categoryOneResetTime;
+            playerVariables.lastCategoryTwoResetTime = categoryTwoResetTime;
             playerVariables.syncPlayerVariables(player);
             EVENT_BUS.post(new MissionEvent.Reset(player));
             return;
         }
 
-        if (playerLastResetTime < currentResetTime) {
-            BrassworksmissionsMod.LOGGER.info("Weekly missions reset for player {}.", player.getName().getString());
+        if (resetCategoryOne && resetCategoryTwo) {
             MissionController.reassignMissions(player);
-            playerVariables.lastWeeklyResetTime = currentResetTime;
+        } else if (resetCategoryOne) {
+            MissionController.reassignMissions(player, 1);
+        } else if (resetCategoryTwo) {
+            MissionController.reassignMissions(player, 2);
+        } else {
+            return;
+        }
+
+        if (resetCategoryOne) {
+            playerVariables.lastWeeklyResetTime = categoryOneResetTime;
+        }
+        if (resetCategoryTwo) {
+            playerVariables.lastCategoryTwoResetTime = categoryTwoResetTime;
+        }
+        BrassworksmissionsMod.LOGGER.info(
+                "Reset {} missions for player {}.",
+                resetCategoryOne && resetCategoryTwo
+                        ? "both mission categories"
+                        : "mission category " + (resetCategoryOne ? 1 : 2),
+                player.getName().getString()
+        );
             playerVariables.syncPlayerVariables(player);
             EVENT_BUS.post(new MissionEvent.Reset(player));
-        }
     }
 }
+

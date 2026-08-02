@@ -8,3 +8,4 @@ public class DrillMissionType extends CreateMissionType<DrillMissionType> {
         return ID;
     }
 }
+

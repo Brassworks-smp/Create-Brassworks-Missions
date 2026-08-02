@@ -91,3 +91,4 @@ public class CustomIconButton extends AbstractSimiWidget {
         this.icon = icon;
     }
 }
+

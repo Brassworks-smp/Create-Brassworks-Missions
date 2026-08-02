@@ -8,3 +8,4 @@ public class HarvesterMissionType extends CreateMissionType<HarvesterMissionType
         return ID;
     }
 }
+

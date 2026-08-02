@@ -8,3 +8,4 @@ public class PressMissionType extends CreateMissionType<PressMissionType> {
         return ID;
     }
 }
+

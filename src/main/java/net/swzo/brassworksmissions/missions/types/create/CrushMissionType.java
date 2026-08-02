@@ -9,3 +9,4 @@ public class CrushMissionType extends CreateMissionType<CrushMissionType> {
     }
 }
 
+

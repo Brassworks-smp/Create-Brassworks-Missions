@@ -1,26 +1,33 @@
 package net.swzo.brassworksmissions.missions;
 
 import com.google.gson.annotations.SerializedName;
+import com.google.gson.JsonElement;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.ItemStack;
 import net.swzo.brassworksmissions.BrassworksmissionsMod;
+import net.swzo.brassworksmissions.api.requirements.MissionAvailabilityRequirement;
+import net.swzo.brassworksmissions.api.requirements.MissionRequirementContext;
+import net.swzo.brassworksmissions.api.requirements.MissionRequirementRegistry;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 public class Mission {
     @SerializedName("id")
     private String id;
-    /**
-     * Optional for backwards compatibility. Existing datapacks use their id as
-     * the mission type. A separate type allows multiple templates to share the
-     * same event handler.
-     */
+    @SerializedName("category")
+    private int category;
+
+
+
+
     @SerializedName("type")
     private String type;
     @SerializedName("icon")
@@ -33,6 +40,10 @@ public class Mission {
     private Requirement requirement;
     @SerializedName("reward")
     private Reward reward;
+    @SerializedName("recipes")
+    private List<String> recipes;
+    @SerializedName("availabilityRequirements")
+    private List<AvailabilityRequirementConfig> availabilityRequirements;
 
     public String getId() {
         return id;
@@ -40,6 +51,49 @@ public class Mission {
 
     public String getType() {
         return type == null || type.isBlank() ? id : type;
+    }
+
+    public int getCategory() {
+        return category == 0 ? 1 : category;
+    }
+
+    public List<String> getRecipeIds() {
+        return recipes == null ? List.of() : List.copyOf(recipes);
+    }
+
+    public boolean isAvailable(ServerPlayer player) {
+        if (availabilityRequirements == null) {
+            return true;
+        }
+        for (AvailabilityRequirementConfig config : availabilityRequirements) {
+            MissionAvailabilityRequirement requirement = MissionRequirementRegistry.get(config.type);
+            if (requirement == null) {
+                return false;
+            }
+            try {
+                if (!requirement.test(player, config.context(id))) {
+                    return false;
+                }
+            } catch (RuntimeException e) {
+                BrassworksmissionsMod.LOGGER.error(
+                        "Availability requirement '{}' failed for mission '{}'.",
+                        config.type,
+                        id,
+                        e
+                );
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public List<AvailabilityRequirementView> getAvailabilityRequirements() {
+        if (availabilityRequirements == null) {
+            return List.of();
+        }
+        return availabilityRequirements.stream()
+                .map(config -> new AvailabilityRequirementView(config.type, config.context(id)))
+                .toList();
     }
 
     public double getWeight() {
@@ -101,36 +155,60 @@ public class Mission {
     public Mission withRewardMode(RewardMode mode) {
         return new Mission(
                 id,
+                getCategory(),
                 type,
                 icon,
                 weight,
                 titles == null ? null : new ArrayList<>(titles),
                 requirement == null ? null : requirement.copy(),
-                reward == null ? null : reward.withMode(mode)
+                reward == null ? null : reward.withMode(mode),
+                recipes == null ? null : new ArrayList<>(recipes),
+                copyAvailabilityRequirements()
         );
     }
 
     public Mission withIcon(String newIcon) {
         return new Mission(
                 id,
+                getCategory(),
                 type,
                 newIcon,
                 weight,
                 titles == null ? null : new ArrayList<>(titles),
                 requirement == null ? null : requirement.copy(),
-                reward
+                reward,
+                recipes == null ? null : new ArrayList<>(recipes),
+                copyAvailabilityRequirements()
         );
     }
 
     public Mission withTitles(List<String> newTitles) {
         return new Mission(
                 id,
+                getCategory(),
                 type,
                 icon,
                 weight,
                 new ArrayList<>(newTitles),
                 requirement == null ? null : requirement.copy(),
-                reward
+                reward,
+                recipes == null ? null : new ArrayList<>(recipes),
+                copyAvailabilityRequirements()
+        );
+    }
+
+    public Mission withCategory(int newCategory) {
+        return new Mission(
+                id,
+                newCategory,
+                type,
+                icon,
+                weight,
+                titles == null ? null : new ArrayList<>(titles),
+                requirement == null ? null : requirement.copy(),
+                reward,
+                recipes == null ? null : new ArrayList<>(recipes),
+                copyAvailabilityRequirements()
         );
     }
 
@@ -150,43 +228,59 @@ public class Mission {
     ) {
         return new Mission(
                 id,
+                1,
                 type,
                 icon,
                 weight,
                 List.copyOf(titles),
                 new Requirement(requirementType, item, minAmount, maxAmount),
-                new Reward(minReward, maxReward, rewardMode)
+                new Reward(minReward, maxReward, rewardMode),
+                null,
+                null
         );
     }
 
     private Mission(
             String id,
+            int category,
             String type,
             @Nullable String icon,
             double weight,
             List<String> titles,
             Requirement requirement,
-            Reward reward
+            Reward reward,
+            List<String> recipes,
+            List<AvailabilityRequirementConfig> availabilityRequirements
     ) {
         this.id = id;
+        this.category = category;
         this.type = type;
         this.icon = icon;
         this.weight = weight;
         this.titles = titles;
         this.requirement = requirement;
         this.reward = reward;
+        this.recipes = recipes;
+        this.availabilityRequirements = availabilityRequirements;
     }
 
-    /**
-     * Validates both datapack and command-created missions before they enter the
-     * weighted pool. The returned text is intended for logs and command errors.
-     */
+    private List<AvailabilityRequirementConfig> copyAvailabilityRequirements() {
+        return availabilityRequirements == null ? null : new ArrayList<>(availabilityRequirements);
+    }
+
+
+
+
+
     public Optional<String> validate() {
         if (id == null || id.isBlank() || ResourceLocation.tryParse(id) == null) {
             return Optional.of("missing or invalid id");
         }
         if (getType() == null || ResourceLocation.tryParse(getType()) == null) {
             return Optional.of("missing or invalid mission type");
+        }
+        if (category < 0 || category > 2) {
+            return Optional.of("category must be 1 or 2");
         }
         if (MissionRegistry.getMissionType(getType()) == null) {
             return Optional.of("unknown mission type '" + getType() + "'");
@@ -237,6 +331,26 @@ public class Mission {
         if (reward.mode != null && RewardMode.tryParse(reward.mode).isEmpty()) {
             return Optional.of("reward mode must be 'random' or 'progressive'");
         }
+        for (String recipe : getRecipeIds()) {
+            if (recipe == null || ResourceLocation.tryParse(recipe) == null) {
+                return Optional.of("invalid recipe id '" + recipe + "'");
+            }
+        }
+        if (availabilityRequirements != null) {
+            for (AvailabilityRequirementConfig config : availabilityRequirements) {
+                if (config == null || config.type == null || config.type.isBlank()) {
+                    return Optional.of("availability requirement is missing its type");
+                }
+                MissionAvailabilityRequirement requirement = MissionRequirementRegistry.get(config.type);
+                if (requirement == null) {
+                    return Optional.of("unknown availability requirement type '" + config.type + "'");
+                }
+                Optional<String> error = requirement.validate(config.context(id));
+                if (error.isPresent()) {
+                    return error;
+                }
+            }
+        }
         return Optional.empty();
     }
 
@@ -278,10 +392,10 @@ public class Mission {
         }
 
         int rewardAmount = calculateRewardAmount(random, reqAmount);
-        ItemStack rewardStack = BrassworksmissionsMod.getRewardManager().getRewardItem();
+        ItemStack rewardStack = BrassworksmissionsMod.getRewardItem();
         if (rewardStack == null || rewardStack.isEmpty()) {
             BrassworksmissionsMod.LOGGER.error(
-                    "The global Reward Manager provided a null or empty reward item. Aborting mission creation for '{}'.",
+                    "The configured reward item is null or empty. Aborting mission creation for '{}'.",
                     id
             );
             return null;
@@ -291,6 +405,7 @@ public class Mission {
         return new ActiveMission(
                 id,
                 getType(),
+                getCategory(),
                 title,
                 reqStack,
                 iconStack,
@@ -362,6 +477,20 @@ public class Mission {
             }
             return new Requirement(requirementType, itemCopy, minAmount, maxAmount);
         }
+    }
+
+    public static class AvailabilityRequirementConfig {
+        @SerializedName("type")
+        private String type;
+        @SerializedName("data")
+        private Map<String, JsonElement> data;
+
+        private MissionRequirementContext context(String missionId) {
+            return new MissionRequirementContext(missionId, data == null ? Map.of() : Map.copyOf(data));
+        }
+    }
+
+    public record AvailabilityRequirementView(String type, MissionRequirementContext context) {
     }
 
     public static class Reward {

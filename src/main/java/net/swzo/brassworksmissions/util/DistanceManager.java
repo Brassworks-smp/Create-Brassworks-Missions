@@ -62,3 +62,4 @@ public class DistanceManager {
         lastTickTracked.remove(uuid);
     }
 }
+

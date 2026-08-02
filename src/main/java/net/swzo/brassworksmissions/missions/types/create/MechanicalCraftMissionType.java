@@ -8,3 +8,4 @@ public class MechanicalCraftMissionType extends CreateMissionType<MechanicalCraf
         return ID;
     }
 }
+

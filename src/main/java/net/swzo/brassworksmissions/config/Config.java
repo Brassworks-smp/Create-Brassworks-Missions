@@ -62,6 +62,14 @@ public class Config {
         public final ModConfigSpec.ConfigValue<List<? extends String>> MISSION_RESET_DAYS;
         public final ModConfigSpec.IntValue MISSION_RESET_HOUR;
         public final ModConfigSpec.IntValue MISSION_SLOT_COUNT;
+        public final ModConfigSpec.ConfigValue<String> CATEGORY_ONE_NAME;
+        public final ModConfigSpec.BooleanValue CATEGORY_TWO_ENABLED;
+        public final ModConfigSpec.ConfigValue<String> CATEGORY_TWO_NAME;
+        public final ModConfigSpec.ConfigValue<List<? extends String>> CATEGORY_TWO_RESET_DAYS;
+        public final ModConfigSpec.IntValue CATEGORY_TWO_RESET_HOUR;
+        public final ModConfigSpec.IntValue CATEGORY_TWO_SLOT_COUNT;
+        public final ModConfigSpec.ConfigValue<String> REWARD_ITEM;
+        public final ModConfigSpec.BooleanValue LIVE_RELOAD;
 
         public Server(ModConfigSpec.Builder builder) {
             builder.push("Mission Reset");
@@ -89,9 +97,62 @@ public class Config {
             MISSION_SLOT_COUNT = builder
                     .comment(
                             "Number of active mission slots per player.",
-                            "Changing this value reassigns missions when a player next joins."
+                            "Changes apply only when category 1 is reset or reassigned."
                     )
-                    .defineInRange("missionSlotCount", 6, 1, 32);
+                    .defineInRange("missionSlotCount", 6, 1, 12);
+            CATEGORY_ONE_NAME = builder
+                    .comment("Display name of the existing mission category.")
+                    .define("categoryOneName", "Available Missions", value -> value instanceof String text && !text.isBlank());
+            builder.pop();
+
+            builder.push("Optional Mission Category");
+            CATEGORY_TWO_ENABLED = builder
+                    .comment(
+                            "Enable a second independently resetting mission category.",
+                            "A missing category 2 is initialized when a player joins.",
+                            "Disabling it applies when category 2 or all missions are reassigned."
+                    )
+                    .define("enabled", false);
+            CATEGORY_TWO_NAME = builder
+                    .comment("Display name of the second mission category.")
+                    .define("name", "Weekly Missions", value -> value instanceof String text && !text.isBlank());
+            CATEGORY_TWO_SLOT_COUNT = builder
+                    .comment(
+                            "Number of active slots in the second mission category.",
+                            "Changes apply only when category 2 is reset or reassigned."
+                    )
+                    .defineInRange("slotCount", 6, 1, 12);
+            CATEGORY_TWO_RESET_DAYS = builder
+                    .comment("Days on which the second mission category resets.")
+                    .defineList("resetDays", List.of("SUNDAY"), obj -> {
+                        if (obj instanceof String day) {
+                            try {
+                                DayOfWeek.valueOf(day.toUpperCase());
+                                return true;
+                            } catch (IllegalArgumentException e) {
+                                return false;
+                            }
+                        }
+                        return false;
+                    });
+            CATEGORY_TWO_RESET_HOUR = builder
+                    .comment("The hour (0-23) UTC at which the second category resets.")
+                    .defineInRange("resetHour", 0, 0, 23);
+            builder.pop();
+
+            builder.push("Mission Rewards");
+            REWARD_ITEM = builder
+                    .comment("Registry name of the item awarded by missions.")
+                    .define("rewardItem", "minecraft:diamond", value -> value instanceof String text && !text.isBlank());
+            builder.pop();
+
+            builder.push("Mission Management");
+            LIVE_RELOAD = builder
+                    .comment(
+                            "Automatically reload missions.json after file changes.",
+                            "When disabled, use /missions manage reload. Applied on server start."
+                    )
+                    .define("liveReload", true);
             builder.pop();
         }
     }

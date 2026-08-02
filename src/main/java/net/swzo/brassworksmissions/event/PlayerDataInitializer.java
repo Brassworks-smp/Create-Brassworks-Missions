@@ -5,6 +5,7 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.swzo.brassworksmissions.BrassworksmissionsMod;
+import net.swzo.brassworksmissions.config.Config;
 import net.swzo.brassworksmissions.missions.MissionController;
 import net.swzo.brassworksmissions.missions.PlayerMissionData;
 import net.swzo.brassworksmissions.network.BrassworksmissionsModVariables;
@@ -21,13 +22,16 @@ public class PlayerDataInitializer {
 
     private static void initializeMissionData(ServerPlayer player) {
         BrassworksmissionsModVariables.PlayerVariables playerVariables = player.getData(BrassworksmissionsModVariables.PLAYER_VARIABLES);
-        boolean slotCountChanged = MissionController.getMissionData(player).getSlotCount()
-                != PlayerMissionData.getConfiguredSlotCount();
-        if (!playerVariables.hasmissiondata || slotCountChanged) {
+        if (!playerVariables.hasmissiondata) {
             MissionController.reassignMissions(player);
             playerVariables.hasmissiondata = true;
             playerVariables.syncPlayerVariables(player);
+            return;
+        }
+        PlayerMissionData missionData = MissionController.getMissionData(player);
+        if (Config.SERVER.CATEGORY_TWO_ENABLED.get()
+                && missionData.getAppliedCategoryTwoSlotCount() == 0) {
+            MissionController.initializeMissingCategoryTwo(player);
         }
     }
 }
-

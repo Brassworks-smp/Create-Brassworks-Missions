@@ -81,8 +81,11 @@ public class UiScreenRenderHelper {
     }
 
     public static long getRemainingMillisUntilReset() {
+        return getRemainingMillisUntilReset(1);
+    }
 
-        long nextResetTimestampInSeconds = MissionResetHandler.getNextWeeklyResetTimestamp();
+    public static long getRemainingMillisUntilReset(int category) {
+        long nextResetTimestampInSeconds = MissionResetHandler.getNextResetTimestamp(category);
 
         long nextResetTimestampInMillis = nextResetTimestampInSeconds * 1000;
 
@@ -174,3 +177,4 @@ public class UiScreenRenderHelper {
         return tooltipLines;
     }
 }
+

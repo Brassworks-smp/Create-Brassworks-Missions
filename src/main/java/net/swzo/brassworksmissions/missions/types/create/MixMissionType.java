@@ -8,3 +8,4 @@ public class MixMissionType extends CreateMissionType<MixMissionType> {
         return ID;
     }
 }
+

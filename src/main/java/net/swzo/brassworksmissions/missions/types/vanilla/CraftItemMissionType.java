@@ -32,3 +32,4 @@ public class CraftItemMissionType implements IMissionType {
         return false;
     }
 }
+

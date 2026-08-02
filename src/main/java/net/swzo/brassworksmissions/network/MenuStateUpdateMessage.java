@@ -8,15 +8,11 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 import net.swzo.brassworksmissions.BrassworksmissionsMod;
 import net.swzo.brassworksmissions.init.BrassworksmissionsModMenus;
 import net.swzo.brassworksmissions.init.BrassworksmissionsModScreens;
 
-@EventBusSubscriber
 public record MenuStateUpdateMessage(int elementType, String name, Object elementState) implements CustomPacketPayload {
 
 	public static final Type<MenuStateUpdateMessage> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath(BrassworksmissionsMod.MODID, "guistate_update"));
@@ -66,10 +62,5 @@ public record MenuStateUpdateMessage(int elementType, String name, Object elemen
 			context.connection().disconnect(Component.literal(e.getMessage()));
 			return null;
 		});
-	}
-
-	@SubscribeEvent
-	public static void registerMessage(FMLCommonSetupEvent event) {
-		BrassworksmissionsMod.addNetworkMessage(MenuStateUpdateMessage.TYPE, MenuStateUpdateMessage.STREAM_CODEC, MenuStateUpdateMessage::handleMenuState);
 	}
 }

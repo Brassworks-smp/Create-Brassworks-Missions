@@ -17,11 +17,13 @@ It was made for the [Brassworks SMP](https://modrinth.com/modpack/brassworks-smp
 - Create style mission menu and HUD
 - Open the menu with H or `/missions`
 - 29 mission types for Vanilla and Create
-- Custom missions through datapacks
-- Admin commands for creating and managing missions
+- Custom missions through an editable config file
+- Admin commands for creating, managing and diagnosing missions
 - Random or progressive rewards for each mission
 - Unclaimed rewards survive mission resets
 - Configurable number of active missions
+- Optional second mission category with its own reset schedule
+- Mission availability requirements, including advancements
 - Singleplayer and multiplayer support
 
 <img width="1408" height="683" alt="Brassworks Missions interface" src="https://github.com/user-attachments/assets/4ae53084-d48a-4847-81cf-da010cfdcfa6" />
@@ -35,59 +37,74 @@ It was made for the [Brassworks SMP](https://modrinth.com/modpack/brassworks-smp
 
 Numismatics is only needed when one of its items is used as the mission reward.
 
-## Datapack missions
+## Mission configuration
 
-Mission files are loaded from:
+Mission definitions are stored in:
 
 ```text
-data/brassworksmissions/missions/*.json
+config/brassworksmissions/missions.json
 ```
 
-Each file contains a JSON array:
+The file is created automatically with the bundled default missions. Its structure is:
 
 ```json
-[
-  {
-    "id": "mypack:iron_shift",
-    "type": "brassworksmissions:smelt_item",
-    "icon": "minecraft:blast_furnace",
-    "weight": 4,
-    "titles": ["Iron Shift", "Hot Work"],
-    "requirement": {
-      "requirementType": "item",
-      "item": "minecraft:iron_ingot",
-      "minAmount": 16,
-      "maxAmount": 64
-    },
-    "reward": {
-      "minAmount": 3,
-      "maxAmount": 12,
-      "mode": "progressive"
+{
+  "version": 2,
+  "missions": [
+    {
+      "id": "mypack:iron_shift",
+      "category": 1,
+      "type": "brassworksmissions:smelt_item",
+      "icon": "minecraft:blast_furnace",
+      "weight": 4,
+      "titles": ["Iron Shift", "Hot Work"],
+      "requirement": {
+        "requirementType": "item",
+        "item": "minecraft:iron_ingot",
+        "minAmount": 16,
+        "maxAmount": 64
+      },
+      "reward": {
+        "minAmount": 3,
+        "maxAmount": 12,
+        "mode": "progressive"
+      }
     }
-  }
-]
+  ],
+  "disabled": []
+}
 ```
 
-`id` identifies the mission template. `type` selects the mission logic. If `type` is missing, the mod uses `id` as the type so older datapacks still work.
+`id` identifies the mission template. `type` selects the mission logic. If `type` is missing, the mod uses `id` as the type for compatibility with older definitions.
 
-`icon` is optional and only controls the icon shown in the menu. Without it, the selected target item is used. Multiple entries in `titles` are picked randomly when the mission is assigned.
+`category` selects mission category 1 or 2 and defaults to 1. `icon` is optional and only controls the icon shown in the menu. Without it, the selected target item is used. Multiple entries in `titles` are picked randomly when the mission is assigned.
 
 Reward modes:
 
 - `random` rolls a value between `minAmount` and `maxAmount`
 - `progressive` increases the reward with the rolled mission difficulty
 
-The reward item is configured in:
+The reward item is configured in the server config:
 
-```text
-data/brassworksmissions/missions/mission_reward.json
+```toml
+rewardItem = "numismatics:spur"
 ```
+
+Mission definitions can optionally be restricted by player advancements:
 
 ```json
-{
-  "item": "numismatics:spur"
-}
+"availabilityRequirements": [
+  {
+    "type": "brassworksmissions:advancement",
+    "data": {
+      "advancement": "minecraft:story/enter_the_nether",
+      "completed": true
+    }
+  }
+]
 ```
+
+Set `completed` to `false` when the mission should only be available before the advancement is completed.
 
 ## Mission management
 
@@ -109,6 +126,8 @@ Main commands:
 /missions manage icon <id> <icon>
 /missions manage titles <id> <title_or_json>
 /missions manage reward_mode <id> <random|progressive>
+/missions manage category <id> <1|2>
+/missions manage diagnose
 /missions manage reload
 ```
 
@@ -128,27 +147,43 @@ The target is only used by item, block and entity missions. Level, distance and 
 
 Target and icon arguments support tab completion. Block missions suggest block items, item missions suggest items, entity missions suggest entity IDs with spawn eggs and icons suggest all registered items.
 
-The mission ID is created automatically. If it already exists, the mod adds a number.
+The mission ID is created automatically. If it already exists, the mod adds a number. Newly created missions start in category 1 and can be moved with `/missions manage category`.
 
-Managed missions are saved in:
-
-```text
-config/brassworksmissions/managed_missions.json
-```
-
-Datapack files are never changed by the commands. Disabling a datapack mission only hides it through the management file.
+Changes made through commands are saved directly to `missions.json`. The file is reloaded automatically after external changes when `liveReload` is enabled. Use `/missions manage diagnose` to check mission definitions, registry entries, recipes and advancement requirements.
 
 Completed rewards that were not collected are stored before a mission reset. They remain available through Claim All after the reset and after restarting the world.
 
-## Active mission count
+## Mission categories and active mission count
 
-The number of active missions is set in the server config:
+The number of active missions in category 1 is set in the server config:
 
 ```toml
 missionSlotCount = 6
 ```
 
-Valid values are 1 to 32. After changing the value, players receive the new number of missions the next time they join.
+Valid values are 1 to 12. Changes apply when category 1 is reset or reassigned.
+
+An optional second category can be enabled with its own name, slot count, reset days and reset hour. Category-specific missions can be reassigned with:
+
+```text
+/missions reassign category <1|2> [player]
+```
+
+Use `/missions reassign [player]` to reassign both categories.
+
+## Legacy datapack missions
+
+Mission files in `data/brassworksmissions/missions/*.json` are no longer loaded directly. When legacy files are detected, server operators can transfer them to `missions.json`, delete them or ignore the warning with the clickable in-game prompt.
+
+The same actions are available through:
+
+```text
+/missions legacy transfer_and_delete
+/missions legacy delete
+/missions legacy ignore
+```
+
+Existing `managed_missions.json` files are renamed to `missions.json` automatically.
 
 ## License
 

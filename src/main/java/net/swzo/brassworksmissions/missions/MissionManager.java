@@ -2,14 +2,12 @@ package net.swzo.brassworksmissions.missions;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.google.gson.JsonElement;
 import com.google.gson.reflect.TypeToken;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.server.packs.resources.ResourceManager;
-import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
-import net.minecraft.util.profiling.ProfilerFiller;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.SpawnEggItem;
@@ -18,6 +16,8 @@ import net.swzo.brassworksmissions.BrassworksmissionsMod;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.Reader;
 import java.io.Writer;
 import java.lang.reflect.Type;
@@ -26,6 +26,8 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardWatchEventKinds;
+import java.nio.file.WatchService;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -34,86 +36,91 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
-/**
- * Combines immutable datapack definitions with a small, persistent management
- * layer. Managed definitions overlay datapacks in memory; datapack files are
- * never edited by commands.
- */
-public class MissionManager extends SimpleJsonResourceReloadListener {
+
+
+
+
+public class MissionManager {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Type MISSION_LIST_TYPE = new TypeToken<List<Mission>>() {
     }.getType();
-    private static final String DIRECTORY = "missions";
-    private static final ResourceLocation REWARD_FILE_ID = ResourceLocation.fromNamespaceAndPath(
-            BrassworksmissionsMod.MODID,
-            "mission_reward"
-    );
-
     private final Path managedConfigPath;
-    private Map<String, Mission> datapackMissions = new LinkedHashMap<>();
-    private Map<String, ResourceLocation> datapackSources = new LinkedHashMap<>();
+    private final Path oldManagedConfigPath;
     private Map<String, Mission> managedMissions = new LinkedHashMap<>();
     private Set<String> disabledMissionIds = new LinkedHashSet<>();
-    private volatile MissionPool pool = MissionPool.EMPTY;
+    @Nullable
+    private String ignoredLegacyFingerprint;
+    private volatile MissionPool categoryOnePool = MissionPool.EMPTY;
+    private volatile MissionPool categoryTwoPool = MissionPool.EMPTY;
+    private final ScheduledExecutorService reloadExecutor = Executors.newSingleThreadScheduledExecutor(runnable -> {
+        Thread thread = new Thread(runnable, "brassworksmissions-live-reload");
+        thread.setDaemon(true);
+        return thread;
+    });
+    @Nullable
+    private volatile WatchService watchService;
+    @Nullable
+    private volatile ScheduledFuture<?> pendingReload;
     @Nullable
     private String lastManagedLoadError;
 
     public MissionManager() {
-        super(GSON, DIRECTORY);
         this.managedConfigPath = FMLPaths.CONFIGDIR.get()
                 .resolve(BrassworksmissionsMod.MODID)
-                .resolve("managed_missions.json");
+                .resolve("missions.json");
+        this.oldManagedConfigPath = managedConfigPath.resolveSibling("managed_missions.json");
     }
 
-    @Override
-    protected synchronized void apply(
-            Map<ResourceLocation, JsonElement> objects,
-            ResourceManager resourceManager,
-            ProfilerFiller profiler
-    ) {
-        Map<String, Mission> loadedDatapackMissions = new LinkedHashMap<>();
-        Map<String, ResourceLocation> loadedSources = new LinkedHashMap<>();
-
-        for (Map.Entry<ResourceLocation, JsonElement> entry : objects.entrySet()) {
-            if (entry.getKey().equals(REWARD_FILE_ID)) {
-                continue;
-            }
-            if (!entry.getKey().getNamespace().equals(BrassworksmissionsMod.MODID)) {
-                continue;
-            }
-
+    public synchronized void initialize() {
+        migrateOldConfigName();
+        if (!Files.exists(managedConfigPath)) {
             try {
-                List<Mission> missionsFromFile = GSON.fromJson(entry.getValue(), MISSION_LIST_TYPE);
-                if (missionsFromFile == null) {
-                    continue;
-                }
-                for (Mission mission : missionsFromFile) {
-                    if (!acceptMission(mission, "datapack " + entry.getKey())) {
-                        continue;
-                    }
-                    Mission previous = loadedDatapackMissions.put(mission.getId(), mission);
-                    ResourceLocation previousSource = loadedSources.put(mission.getId(), entry.getKey());
-                    if (previous != null) {
-                        BrassworksmissionsMod.LOGGER.warn(
-                                "Duplicate mission id '{}' in {} replaces the definition from {}.",
-                                mission.getId(),
-                                entry.getKey(),
-                                previousSource
-                        );
-                    }
-                }
-            } catch (Exception e) {
-                BrassworksmissionsMod.LOGGER.error("Could not parse mission file: {}", entry.getKey(), e);
+                ManagedState defaults = readBundledDefaults();
+                writeManagedState(defaults.missions(), defaults.disabledIds(), null);
+            } catch (IOException e) {
+                BrassworksmissionsMod.LOGGER.error("Could not create default mission config '{}'.", managedConfigPath, e);
             }
         }
+        applyManagedState(readManagedState());
+    }
 
-        ManagedState loadedManagedState = readManagedState();
-        datapackMissions = loadedDatapackMissions;
-        datapackSources = loadedSources;
-        managedMissions = loadedManagedState.missions();
-        disabledMissionIds = loadedManagedState.disabledIds();
-        rebuildPool();
+    private void migrateOldConfigName() {
+        if (Files.exists(managedConfigPath) || !Files.exists(oldManagedConfigPath)) {
+            return;
+        }
+        try {
+            Files.createDirectories(managedConfigPath.getParent());
+            Files.move(oldManagedConfigPath, managedConfigPath);
+            BrassworksmissionsMod.LOGGER.info("Renamed managed_missions.json to missions.json.");
+        } catch (IOException e) {
+            BrassworksmissionsMod.LOGGER.error("Could not rename '{}' to '{}'.", oldManagedConfigPath, managedConfigPath, e);
+        }
+    }
+
+    private ManagedState readBundledDefaults() throws IOException {
+        try (InputStream stream = MissionManager.class.getResourceAsStream("/missions.json")) {
+            if (stream == null) {
+                throw new IOException("Bundled missions.json is missing");
+            }
+            try (Reader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
+                List<Mission> defaults = GSON.fromJson(reader, MISSION_LIST_TYPE);
+                Map<String, Mission> missions = new LinkedHashMap<>();
+                if (defaults != null) {
+                    for (Mission mission : defaults) {
+                        if (acceptMission(mission, "bundled defaults")) {
+                            missions.put(mission.getId(), mission);
+                        }
+                    }
+                }
+                return new ManagedState(missions, new LinkedHashSet<>(), null);
+            }
+        }
     }
 
     private boolean acceptMission(@Nullable Mission mission, String source) {
@@ -169,11 +176,11 @@ public class MissionManager extends SimpleJsonResourceReloadListener {
                     }
                 }
             }
-            return new ManagedState(missions, disabled);
+            return new ManagedState(missions, disabled, file.ignoredLegacyFingerprint);
         } catch (Exception e) {
             lastManagedLoadError = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
             BrassworksmissionsMod.LOGGER.error(
-                    "Could not load managed mission config '{}'. Datapack missions remain available.",
+                    "Could not load mission config '{}'. The current runtime state will be kept when possible.",
                     managedConfigPath,
                     e
             );
@@ -182,31 +189,42 @@ public class MissionManager extends SimpleJsonResourceReloadListener {
     }
 
     private void rebuildPool() {
-        Map<String, Mission> combined = new LinkedHashMap<>(datapackMissions);
-        combined.putAll(managedMissions);
+        Map<String, Mission> combined = new LinkedHashMap<>(managedMissions);
         disabledMissionIds.forEach(combined::remove);
 
-        List<Mission> available = new ArrayList<>();
-        double totalWeight = 0.0D;
+        List<Mission> categoryOne = new ArrayList<>();
+        List<Mission> categoryTwo = new ArrayList<>();
+        double categoryOneWeight = 0.0D;
+        double categoryTwoWeight = 0.0D;
         for (Mission mission : combined.values()) {
-            available.add(mission);
-            totalWeight += mission.getWeight();
+            if (mission.getCategory() == 2) {
+                categoryTwo.add(mission);
+                categoryTwoWeight += mission.getWeight();
+            } else {
+                categoryOne.add(mission);
+                categoryOneWeight += mission.getWeight();
+            }
         }
-        pool = new MissionPool(List.copyOf(available), totalWeight);
+        categoryOnePool = new MissionPool(List.copyOf(categoryOne), categoryOneWeight);
+        categoryTwoPool = new MissionPool(List.copyOf(categoryTwo), categoryTwoWeight);
 
         BrassworksmissionsMod.LOGGER.info(
-                "Loaded {} active missions ({} datapack, {} managed, {} disabled) with a total weight of {}.",
-                available.size(),
-                datapackMissions.size(),
+                "Loaded {} category 1 and {} category 2 missions ({} configured, {} disabled).",
+                categoryOne.size(),
+                categoryTwo.size(),
                 managedMissions.size(),
-                disabledMissionIds.size(),
-                totalWeight
+                disabledMissionIds.size()
         );
     }
 
     @Nullable
     public Mission getWeightedRandomMission(RandomSource random) {
-        MissionPool currentPool = pool;
+        return getWeightedRandomMission(random, 1);
+    }
+
+    @Nullable
+    public Mission getWeightedRandomMission(RandomSource random, int category) {
+        MissionPool currentPool = category == 2 ? categoryTwoPool : categoryOnePool;
         if (currentPool.totalWeight() <= 0.0D || currentPool.missions().isEmpty()) {
             return null;
         }
@@ -221,25 +239,40 @@ public class MissionManager extends SimpleJsonResourceReloadListener {
         return currentPool.missions().get(currentPool.missions().size() - 1);
     }
 
+    @Nullable
+    public Mission getWeightedRandomMission(ServerPlayer player, RandomSource random, int category) {
+        MissionPool currentPool = category == 2 ? categoryTwoPool : categoryOnePool;
+        List<Mission> eligible = currentPool.missions().stream()
+                .filter(mission -> mission.isAvailable(player))
+                .toList();
+        double totalWeight = eligible.stream().mapToDouble(Mission::getWeight).sum();
+        if (eligible.isEmpty() || totalWeight <= 0.0D) {
+            return null;
+        }
+        double randomValue = random.nextDouble() * totalWeight;
+        for (Mission mission : eligible) {
+            randomValue -= mission.getWeight();
+            if (randomValue <= 0.0D) {
+                return mission;
+            }
+        }
+        return eligible.getLast();
+    }
+
     public synchronized List<MissionView> listMissions() {
-        Set<String> ids = new LinkedHashSet<>(datapackMissions.keySet());
-        ids.addAll(managedMissions.keySet());
+        Set<String> ids = new LinkedHashSet<>(managedMissions.keySet());
         ids.addAll(disabledMissionIds);
 
         List<MissionView> result = new ArrayList<>();
         for (String id : ids) {
-            Mission managed = managedMissions.get(id);
-            Mission datapack = datapackMissions.get(id);
-            Mission mission = managed != null ? managed : datapack;
+            Mission mission = managedMissions.get(id);
             if (mission == null) {
                 continue;
             }
-            MissionSource source = managed != null ? MissionSource.MANAGED : MissionSource.DATAPACK;
             result.add(new MissionView(
                     mission,
-                    source,
-                    !disabledMissionIds.contains(id),
-                    datapackSources.get(id)
+                    MissionSource.MANAGED,
+                    !disabledMissionIds.contains(id)
             ));
         }
         result.sort(Comparator.comparing(view -> view.mission().getId()));
@@ -255,7 +288,7 @@ public class MissionManager extends SimpleJsonResourceReloadListener {
         if (error.isPresent()) {
             return OperationResult.failure("Invalid mission: " + error.get());
         }
-        if (datapackMissions.containsKey(mission.getId()) || managedMissions.containsKey(mission.getId())) {
+        if (managedMissions.containsKey(mission.getId())) {
             return OperationResult.failure(
                     "Mission '" + mission.getId() + "' already exists. Choose another template id."
             );
@@ -369,7 +402,7 @@ public class MissionManager extends SimpleJsonResourceReloadListener {
         String basePath = "managed/" + typePart + "/" + itemPart;
         String candidate = ResourceLocation.fromNamespaceAndPath(BrassworksmissionsMod.MODID, basePath).toString();
         int suffix = 2;
-        while (datapackMissions.containsKey(candidate) || managedMissions.containsKey(candidate)) {
+        while (managedMissions.containsKey(candidate)) {
             candidate = ResourceLocation.fromNamespaceAndPath(
                     BrassworksmissionsMod.MODID,
                     basePath + "_" + suffix
@@ -387,32 +420,18 @@ public class MissionManager extends SimpleJsonResourceReloadListener {
 
     public synchronized OperationResult removeManagedMission(String id) {
         if (!managedMissions.containsKey(id)) {
-            if (datapackMissions.containsKey(id)) {
-                return OperationResult.failure(
-                        "Mission '" + id + "' comes from a datapack and cannot be deleted. Use disable instead."
-                );
-            }
             return OperationResult.failure("Unknown managed mission '" + id + "'.");
         }
 
         Map<String, Mission> updated = new LinkedHashMap<>(managedMissions);
         updated.remove(id);
         Set<String> updatedDisabled = new LinkedHashSet<>(disabledMissionIds);
-        if (!datapackMissions.containsKey(id)) {
-            updatedDisabled.remove(id);
-        }
-        String message;
-        if (datapackMissions.containsKey(id)) {
-            message = "Removed the managed override for '" + id + "'; the datapack definition "
-                    + (updatedDisabled.contains(id) ? "remains disabled." : "is active again.");
-        } else {
-            message = "Deleted managed mission '" + id + "'.";
-        }
-        return persistAndApply(updated, updatedDisabled, message);
+        updatedDisabled.remove(id);
+        return persistAndApply(updated, updatedDisabled, "Deleted managed mission '" + id + "'.");
     }
 
     public synchronized OperationResult setEnabled(String id, boolean enabled) {
-        if (!datapackMissions.containsKey(id) && !managedMissions.containsKey(id)) {
+        if (!managedMissions.containsKey(id)) {
             return OperationResult.failure("Unknown mission '" + id + "'.");
         }
 
@@ -433,20 +452,15 @@ public class MissionManager extends SimpleJsonResourceReloadListener {
     public synchronized OperationResult setRewardMode(String id, Mission.RewardMode rewardMode) {
         Mission existing = managedMissions.get(id);
         if (existing == null) {
-            existing = datapackMissions.get(id);
-        }
-        if (existing == null) {
             return OperationResult.failure("Unknown mission '" + id + "'.");
         }
 
         Map<String, Mission> updated = new LinkedHashMap<>(managedMissions);
         updated.put(id, existing.withRewardMode(rewardMode));
-        boolean createsOverride = !managedMissions.containsKey(id) && datapackMissions.containsKey(id);
         return persistAndApply(
                 updated,
                 disabledMissionIds,
                 "Set reward mode of '" + id + "' to " + rewardMode.serializedName() + "."
-                        + (createsOverride ? " A non-destructive managed override was created." : "")
         );
     }
 
@@ -492,8 +506,7 @@ public class MissionManager extends SimpleJsonResourceReloadListener {
 
     @Nullable
     private Mission getEffectiveMission(String id) {
-        Mission managed = managedMissions.get(id);
-        return managed != null ? managed : datapackMissions.get(id);
+        return managedMissions.get(id);
     }
 
     public synchronized OperationResult reloadManagedMissions() {
@@ -504,10 +517,171 @@ public class MissionManager extends SimpleJsonResourceReloadListener {
                             + lastManagedLoadError
             );
         }
-        managedMissions = reloaded.missions();
-        disabledMissionIds = reloaded.disabledIds();
+        applyManagedState(reloaded);
+        return OperationResult.success("Reloaded missions from " + managedConfigPath + ".");
+    }
+
+    public void reloadManagedMissionsAsync(MinecraftServer server, Consumer<OperationResult> callback) {
+        reloadExecutor.execute(() -> {
+            ManagedState reloaded;
+            String error;
+            synchronized (this) {
+                reloaded = readManagedState();
+                error = lastManagedLoadError;
+            }
+            server.execute(() -> {
+                OperationResult result;
+                synchronized (this) {
+                    if (error == null) {
+                        applyManagedState(reloaded);
+                        result = OperationResult.success("Reloaded missions from missions.json.");
+                    } else {
+                        result = OperationResult.failure("Live reload rejected: " + error);
+                    }
+                }
+                callback.accept(result);
+            });
+        });
+    }
+
+    public synchronized void startLiveReload(MinecraftServer server) {
+        stopLiveReload();
+        try {
+            Files.createDirectories(managedConfigPath.getParent());
+            WatchService watcher = managedConfigPath.getFileSystem().newWatchService();
+            managedConfigPath.getParent().register(
+                    watcher,
+                    StandardWatchEventKinds.ENTRY_CREATE,
+                    StandardWatchEventKinds.ENTRY_MODIFY
+            );
+            watchService = watcher;
+            Thread thread = new Thread(() -> watchLoop(server, watcher), "brassworksmissions-file-watch");
+            thread.setDaemon(true);
+            thread.start();
+        } catch (IOException e) {
+            BrassworksmissionsMod.LOGGER.error("Could not start missions.json live reload.", e);
+        }
+    }
+
+    public synchronized void stopLiveReload() {
+        if (pendingReload != null) {
+            pendingReload.cancel(false);
+            pendingReload = null;
+        }
+        WatchService watcher = watchService;
+        watchService = null;
+        if (watcher != null) {
+            try {
+                watcher.close();
+            } catch (IOException ignored) {
+            }
+        }
+    }
+
+    private void watchLoop(MinecraftServer server, WatchService watcher) {
+        try {
+            while (watchService == watcher) {
+                var key = watcher.take();
+                boolean changed = key.pollEvents().stream().anyMatch(event ->
+                        event.context() instanceof Path path
+                                && path.getFileName().equals(managedConfigPath.getFileName())
+                );
+                key.reset();
+                if (changed) {
+                    scheduleLiveReload(server);
+                }
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (java.nio.file.ClosedWatchServiceException ignored) {
+        }
+    }
+
+    private synchronized void scheduleLiveReload(MinecraftServer server) {
+        if (pendingReload != null) {
+            pendingReload.cancel(false);
+        }
+        pendingReload = reloadExecutor.schedule(
+                () -> reloadManagedMissionsAsync(server, result -> {
+                    if (result.success()) {
+                        BrassworksmissionsMod.LOGGER.info(result.message());
+                    } else {
+                        BrassworksmissionsMod.LOGGER.error(result.message());
+                    }
+                }),
+                400L,
+                TimeUnit.MILLISECONDS
+        );
+    }
+
+    public Path getConfigPath() {
+        return managedConfigPath;
+    }
+
+    public synchronized OperationResult setCategory(String id, int category) {
+        Mission existing = managedMissions.get(id);
+        if (existing == null) {
+            return OperationResult.failure("Unknown mission '" + id + "'.");
+        }
+        if (category < 1 || category > 2) {
+            return OperationResult.failure("Category must be 1 or 2.");
+        }
+        if (existing.getCategory() == category) {
+            return OperationResult.failure("Mission '" + id + "' is already in category " + category + ".");
+        }
+        Map<String, Mission> updated = new LinkedHashMap<>(managedMissions);
+        updated.put(id, existing.withCategory(category));
+        return persistAndApply(
+                updated,
+                disabledMissionIds,
+                "Moved '" + id + "' to category " + category + "."
+        );
+    }
+
+    private void applyManagedState(ManagedState state) {
+        managedMissions = new LinkedHashMap<>(state.missions());
+        disabledMissionIds = new LinkedHashSet<>(state.disabledIds());
+        ignoredLegacyFingerprint = state.ignoredLegacyFingerprint();
         rebuildPool();
-        return OperationResult.success("Reloaded managed missions from " + managedConfigPath + ".");
+    }
+
+    public synchronized boolean isLegacyFingerprintIgnored(String fingerprint) {
+        return fingerprint != null && fingerprint.equals(ignoredLegacyFingerprint);
+    }
+
+    public synchronized OperationResult ignoreLegacyMissions(String fingerprint) {
+        try {
+            writeManagedState(managedMissions, disabledMissionIds, fingerprint);
+            ignoredLegacyFingerprint = fingerprint;
+            return OperationResult.success("Legacy datapack missions will be ignored until those files change.");
+        } catch (IOException e) {
+            BrassworksmissionsMod.LOGGER.error("Could not save legacy mission choice to '{}'.", managedConfigPath, e);
+            return OperationResult.failure("Could not save the ignore choice: " + e.getMessage());
+        }
+    }
+
+    public synchronized OperationResult importLegacyMissions(List<Mission> legacyMissions) {
+        Map<String, Mission> updated = new LinkedHashMap<>(managedMissions);
+        int replaced = 0;
+        int imported = 0;
+        for (Mission mission : legacyMissions) {
+            if (!acceptMission(mission, "legacy datapack migration")) {
+                continue;
+            }
+            if (updated.put(mission.getId(), mission) != null) {
+                replaced++;
+            }
+            imported++;
+        }
+        if (imported == 0) {
+            return OperationResult.failure("The legacy datapack did not contain any valid missions to transfer.");
+        }
+        return persistAndApply(
+                updated,
+                disabledMissionIds,
+                "Transferred " + imported + " legacy mission(s) to missions.json"
+                        + (replaced == 0 ? "." : " (replaced " + replaced + " existing definition(s)).")
+        );
     }
 
     private OperationResult persistAndApply(
@@ -518,7 +692,7 @@ public class MissionManager extends SimpleJsonResourceReloadListener {
         Map<String, Mission> missionCopy = new LinkedHashMap<>(updatedMissions);
         Set<String> disabledCopy = new LinkedHashSet<>(updatedDisabled);
         try {
-            writeManagedState(missionCopy, disabledCopy);
+            writeManagedState(missionCopy, disabledCopy, ignoredLegacyFingerprint);
             managedMissions = missionCopy;
             disabledMissionIds = disabledCopy;
             rebuildPool();
@@ -529,15 +703,20 @@ public class MissionManager extends SimpleJsonResourceReloadListener {
         }
     }
 
-    private void writeManagedState(Map<String, Mission> missions, Set<String> disabled) throws IOException {
+    private void writeManagedState(
+            Map<String, Mission> missions,
+            Set<String> disabled,
+            @Nullable String legacyFingerprint
+    ) throws IOException {
         Files.createDirectories(managedConfigPath.getParent());
-        Path temporary = Files.createTempFile(managedConfigPath.getParent(), "managed_missions-", ".tmp");
+        Path temporary = Files.createTempFile(managedConfigPath.getParent(), "missions-", ".tmp");
         boolean moved = false;
         try {
             ManagedMissionFile file = new ManagedMissionFile();
-            file.version = 1;
+            file.version = 2;
             file.missions = new ArrayList<>(missions.values());
             file.disabled = new ArrayList<>(disabled);
+            file.ignoredLegacyFingerprint = legacyFingerprint;
             try (Writer writer = Files.newBufferedWriter(temporary, StandardCharsets.UTF_8)) {
                 GSON.toJson(file, writer);
             }
@@ -560,15 +739,13 @@ public class MissionManager extends SimpleJsonResourceReloadListener {
     }
 
     public enum MissionSource {
-        DATAPACK,
         MANAGED
     }
 
     public record MissionView(
             Mission mission,
             MissionSource source,
-            boolean enabled,
-            @Nullable ResourceLocation datapackSource
+            boolean enabled
     ) {
     }
 
@@ -586,15 +763,22 @@ public class MissionManager extends SimpleJsonResourceReloadListener {
         private static final MissionPool EMPTY = new MissionPool(List.of(), 0.0D);
     }
 
-    private record ManagedState(Map<String, Mission> missions, Set<String> disabledIds) {
+    private record ManagedState(
+            Map<String, Mission> missions,
+            Set<String> disabledIds,
+            @Nullable String ignoredLegacyFingerprint
+    ) {
         private static ManagedState empty() {
-            return new ManagedState(new LinkedHashMap<>(), new LinkedHashSet<>());
+            return new ManagedState(new LinkedHashMap<>(), new LinkedHashSet<>(), null);
         }
     }
 
     private static class ManagedMissionFile {
-        private int version = 1;
+        private int version = 2;
         private List<Mission> missions = new ArrayList<>();
         private List<String> disabled = new ArrayList<>();
+        @Nullable
+        private String ignoredLegacyFingerprint;
     }
 }
+
