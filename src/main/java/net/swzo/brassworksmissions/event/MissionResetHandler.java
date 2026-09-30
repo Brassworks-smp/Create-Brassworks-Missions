@@ -121,8 +121,9 @@ public class MissionResetHandler {
                 ? getMostRecentResetTimestamp(2)
                 : -1;
         boolean resetCategoryOne = playerVariables.lastWeeklyResetTime < categoryOneResetTime;
-        boolean resetCategoryTwo = categoryTwoResetTime != -1
-                && playerVariables.lastCategoryTwoResetTime < categoryTwoResetTime;
+        boolean resetCategoryTwo = Config.SERVER.CATEGORY_TWO_ENABLED.get()
+                ? categoryTwoResetTime != -1 && playerVariables.lastCategoryTwoResetTime < categoryTwoResetTime
+                : playerVariables.missionData != null && playerVariables.missionData.getAppliedCategoryTwoSlotCount() > 0;
 
         if (playerVariables.missionData == null) {
             playerVariables.missionData = new PlayerMissionData();
